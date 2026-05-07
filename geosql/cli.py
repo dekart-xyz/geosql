@@ -3,11 +3,14 @@ import os
 import select
 import shutil
 import sys
+from importlib import metadata
 from pathlib import Path
+from urllib import error, request
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 ROOT_SKILL_FILE = PACKAGE_ROOT / "SKILL.md"
 ROOT_REFERENCES_DIR = PACKAGE_ROOT / "references"
+DEFAULT_VERSION_CHECK_URL = "https://cloud.dekart.xyz/api/v1/version/geosql"
 
 
 def build_parser():
@@ -22,6 +25,44 @@ def build_parser():
     install.add_argument("target", choices=["claude", "codex", "all"], help="CLI target to install geosql into.")
 
     return parser
+
+
+def telemetry_disabled():
+    """Return True if telemetry/version ping is disabled by env."""
+    # Canonical opt-out is DO_NOT_TRACK=1 (or true/yes/on).
+    # DNT=1 is supported for compatibility with common tooling.
+    for key in ("DO_NOT_TRACK", "DNT"):
+        value = os.environ.get(key, "").strip().lower()
+        if value in {"1", "true", "yes", "on"}:
+            return True
+    return False
+
+
+def get_installed_version():
+    """Return installed package version or 'unknown'."""
+    try:
+        return metadata.version("geosql")
+    except metadata.PackageNotFoundError:
+        return "unknown"
+    except Exception:
+        return "unknown"
+
+
+def send_version_ping():
+    """Send non-blocking CLI version ping to Dekart endpoint."""
+    if telemetry_disabled():
+        return
+    url = os.environ.get("GEOSQL_VERSION_CHECK_URL", DEFAULT_VERSION_CHECK_URL).strip() or DEFAULT_VERSION_CHECK_URL
+    version = get_installed_version()
+    req = request.Request(url=url, method="GET")
+    req.add_header("User-Agent", f"geosql/{version}")
+    try:
+        with request.urlopen(req, timeout=2):
+            return
+    except (error.URLError, TimeoutError, ValueError):
+        return
+    except Exception:
+        return
 
 
 def is_interactive_terminal():
@@ -59,7 +100,8 @@ def print_banner():
     title_color = (140, 210, 245)
     for line in lines:
         print(ansi_rgb(line, title_color[0], title_color[1], title_color[2], bold=True))
-    print(ansi_rgb("GeoSQL installer", 235, 235, 235, bold=True))
+    version = get_installed_version()
+    print(ansi_rgb(f"GeoSQL installer v{version}", 235, 235, 235, bold=True))
     print()
 
 
@@ -287,6 +329,7 @@ def handle_install_target(target):
 
 def main():
     """CLI entrypoint."""
+    send_version_ping()
     parser = build_parser()
     args = parser.parse_args()
 
