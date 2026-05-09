@@ -31,7 +31,7 @@ In Claude Code (recommended):
 /plugin install geosql
 ```
 
-With Python (Claude Code, Codex, others):
+With Python (interactive mode):
 
 ```bash
 pip install geosql
@@ -46,7 +46,7 @@ npx skills add dekart-xyz/geosql
 
 Then type `/geosql` in your agent's prompt to use the skill.
 
-### Enable map rendering (optional)
+### Enable map rendering (recommended)
 
 ```bash
 pip install dekart
