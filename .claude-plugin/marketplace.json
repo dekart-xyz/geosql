@@ -1,5 +1,5 @@
 {
-  "name": "geosql",
+  "name": "dekart",
   "owner": {
     "name": "Dekart XYZ",
     "email": "support@dekart.xyz",
@@ -10,7 +10,7 @@
       "name": "geosql",
       "source": "./",
       "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
-      "version": "0.8.0"
+      "version": "0.9.0"
     }
   ]
 }

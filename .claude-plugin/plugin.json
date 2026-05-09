@@ -1,6 +1,6 @@
 {
   "name": "geosql",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
   "author": {
     "name": "Dekart XYZ",
