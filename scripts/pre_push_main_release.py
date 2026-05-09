@@ -121,6 +121,18 @@ def publish_to_pypi():
     run(cmd)
 
 
+def run_ci_checks():
+    """Run local CI checks before release automation."""
+    print("[pre-push] running CI checks...")
+    # 1) Syntax/import check for package and scripts.
+    run([sys.executable, "-m", "compileall", "-q", "geosql", "scripts"])
+    # 2) CLI entrypoint smoke check.
+    run([sys.executable, "-m", "geosql.cli", "--help"])
+    # 3) Skill package must be buildable.
+    run([sys.executable, str(SKILL_BUILDER)])
+    print("[pre-push] CI checks passed")
+
+
 def main():
     try:
         branch = current_branch()
@@ -140,6 +152,8 @@ def main():
         return 0
     if pending and pending != head:
         clear_pending_push()
+
+    run_ci_checks()
 
     print("[pre-push] main branch detected: running release steps...")
 

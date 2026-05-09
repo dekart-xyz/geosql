@@ -6,18 +6,11 @@ import sys
 from importlib import metadata
 from pathlib import Path
 from urllib import error, request
+from geosql.paths import references_dir_path, skill_file_path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-# Installed wheels carry SKILL.md inside the package (via force-include).
-# Editable / source checkouts keep canonical files under skills/geosql/.
-_PACKAGED_SKILL_FILE = PACKAGE_ROOT / "SKILL.md"
-_SOURCE_SKILL_FILE = PACKAGE_ROOT.parent / "skills" / "geosql" / "SKILL.md"
-ROOT_SKILL_FILE = _PACKAGED_SKILL_FILE if _PACKAGED_SKILL_FILE.exists() else _SOURCE_SKILL_FILE
-ROOT_REFERENCES_DIR = (
-    PACKAGE_ROOT / "references"
-    if (PACKAGE_ROOT / "references").exists()
-    else PACKAGE_ROOT.parent / "skills" / "geosql" / "references"
-)
+ROOT_SKILL_FILE = skill_file_path()
+ROOT_REFERENCES_DIR = references_dir_path()
 DEFAULT_VERSION_CHECK_URL = "https://cloud.dekart.xyz/api/v1/version/geosql"
 
 
