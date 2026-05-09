@@ -24,15 +24,21 @@ It works with any private GEOGRAPHY/GEOMETRY dataset too.
 
 ### Install SKILL
 
+In Claude Code (recommended):
 
-With python
+```
+/plugin marketplace add dekart-xyz/geosql
+/plugin install geosql
+```
+
+With Python (Claude Code, Codex, others):
 
 ```bash
 pip install geosql
 geosql
 ```
 
-With Node.js
+With Node.js:
 
 ```bash
 npx skills add dekart-xyz/geosql

@@ -1,0 +1,22 @@
+{
+  "name": "geosql",
+  "version": "0.8.0",
+  "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
+  "author": {
+    "name": "Dekart XYZ",
+    "url": "https://dekart.xyz"
+  },
+  "homepage": "https://github.com/dekart-xyz/geosql",
+  "repository": "https://github.com/dekart-xyz/geosql",
+  "license": "MIT",
+  "keywords": [
+    "bigquery",
+    "snowflake",
+    "geospatial",
+    "gis",
+    "sql",
+    "overture-maps",
+    "h3",
+    "dekart"
+  ]
+}

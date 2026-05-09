@@ -18,3 +18,10 @@ geosql = "geosql.cli:main"
 include = [
   "/geosql/**",
 ]
+
+# Skill files live at skills/geosql/ (Claude Code plugin convention).
+# Ship them inside the wheel under geosql/ so the installed CLI reads from
+# its own package dir and editable installs fall back to skills/geosql/.
+[tool.hatch.build.targets.wheel.force-include]
+"skills/geosql/SKILL.md" = "geosql/SKILL.md"
+"skills/geosql/references" = "geosql/references"
