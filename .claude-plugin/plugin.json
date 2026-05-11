@@ -1,5 +1,5 @@
 {
-  "name": "geosql",
+  "name": "dekart",
   "version": "0.11.0",
   "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
   "author": {

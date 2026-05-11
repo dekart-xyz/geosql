@@ -18,12 +18,6 @@ It works with any private GEOGRAPHY/GEOMETRY dataset too.
 
 ## Install (Claude/Codex)
 
-### Prerequisites
-
-* `bq` or `snow` CLI installed and authenticated with default project/connection (!) configured.
-
-### Install SKILL
-
 In Claude Code (recommended):
 
 ```
@@ -44,7 +38,13 @@ With Node.js:
 npx skills add dekart-xyz/geosql
 ```
 
-Then type `/dekart:geosql` in your agent's prompt to use the skill.
+Then type `/geosql` in your agent's prompt to use the skill.
+
+
+### Connect to your warehouse
+
+GeoSQL can use you data warehouse if data if you have `bq` or `snow` CLI installed and authenticated with default project/connection (!) configured.
+
 
 ### Enable map rendering (recommended)
 
