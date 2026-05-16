@@ -209,7 +209,7 @@ Do not claim visual insights until the styled snapshot is rendered and inspected
 
 Make sure maps are beautifully styled and communicate a clear insight. Always add a map title, dataset name, and layer names, and optionally include a README when the user asks for insight.
 
-If dekart CLI is missing, ask the user to `pip install dekart-cli && dekart init` and wait until the user confirms with `ready`, `done`, or `ok`. If unauthed, ask to run `dekart init`.
+If dekart CLI is missing, ask the user to `pip install dekart && dekart init` and wait until the user confirms with `ready`, `done`, or `ok`. If unauthed, ask to run `dekart init`.
 
 
 ## Running Queries with `bq` CLI

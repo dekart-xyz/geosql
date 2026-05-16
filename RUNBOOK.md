@@ -104,7 +104,6 @@ git push         # push new local commits
 From repo root:
 
 ```bash
-cd /Users/vladi/dev/geosql
 make shell-dekart-claude
 claude --dangerously-skip-permissions
 ```
