@@ -396,7 +396,7 @@ Do not run both flows for the same task unless user explicitly asks.
      `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect the saved local PNG output from that command; do not use direct PNG URLs/links
    - verify snapshot render reflects expected area/content before finalizing
-10. Return resulting absolute `report_url` and image (when available) in final response.
+10. Return resulting IDs, absolute `report_url`, and image (when available) in final response.
 
 
 ### Query mode (connectors available)
@@ -425,7 +425,8 @@ Do not run both flows for the same task unless user explicitly asks.
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
-11. Return resulting absolute `report_url` and image (when available) in final response.
+11. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
+   - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and `report_url`.
 
 ### Failure handling
 * Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.
@@ -440,6 +441,8 @@ Do not run both flows for the same task unless user explicitly asks.
   - confirm bound column names match exported dataset headers exactly (case-sensitive). Note: snowflake export columns names are uppercase by default.
 * Never present `report_path` as a Map URL or user-facing link.
 * If `report_url` is missing, report that the CLI did not return a usable Map URL and include `report_path` only as a diagnostic path.
+* Never reconstruct map URLs from config-derived host strings.
+* Never call create-report multiple times just to get URL fields.
 * Never call Dekart HTTP, config files, or anything outside the documented dekart CLI.
 
 
