@@ -1,6 +1,6 @@
 ---
 name: geosql
-description: Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.
+description: Build cost-safe Geospatial SQL for BigQuery, Snowflake, Wherobots and Postgres and render results on an interactive map.
 ---
 
 # GeoSQL (Claude)
@@ -8,9 +8,10 @@ description: Build cost-safe Geospatial SQL for BigQuery or Snowflake and render
 ## Tools/CLI
 
 This skill uses the following CLIs:
-- `dekart` for running SQLs and rendering maps
+- `dekart` for running BigQuery, Snowflake, Wherobots and Postgres SQLs and rendering maps
 - `bq` to run BigQuery SQL when `dekart` BigQuery integration is not available.
 - `snow` to run Snowflake SQL when `dekart` Snowflake integration is not available.
+- Wherobots and Postgres have no local CLI fallback; they are dekart-only in this skill.
 
 Before using CLIs, verify availability if it was not done before:
 
@@ -23,6 +24,15 @@ If `dekart` is available, check available connectors:
 ```bash
 dekart call --name list_connections --args '{}' --json
 ```
+
+If no CLI is available, suggest installing the dekart CLI: `pip install dekart && dekart init`. `dekart init` is an interactive command that must be run by the user.
+
+The user has 3 options in `dekart init`:
+- cloud.dekart.xyz (Dekart-hosted control plane, easier setup)
+- localhost (`docker run -p 8080:8080 dekartxyz/dekart`, more secure, requires Docker)
+- self-hosted
+
+Help the user pick the best installation option for their needs.
 
 ## Required Workflow
 
@@ -73,6 +83,32 @@ WHERE table_schema = 'CARTO'
 ORDER BY ordinal_position;
 ```
 
+Postgres / PostGIS:
+
+Postgres has no Overture public dataset. Discover the user's own spatial tables; do not assume table or column names.
+
+```sql
+-- List tables that have a geometry/geography column
+SELECT f_table_schema, f_table_name, f_geometry_column, type, srid
+FROM geometry_columns
+ORDER BY f_table_schema, f_table_name;
+```
+
+```sql
+-- Columns and types for a target table
+SELECT column_name, data_type, udt_name
+FROM information_schema.columns
+WHERE table_schema = '<schema>'
+  AND table_name = '<target_table>'
+ORDER BY ordinal_position;
+```
+
+Confirm the geometry column's SRID (expect `4326` for lon/lat). If SRID differs, plan to `ST_Transform(geom, 4326)` for map output. PostGIS must be enabled (`CREATE EXTENSION postgis;`); if `geometry_columns` errors, stop and ask the user to enable PostGIS.
+
+Wherobots (Sedona / Spatial SQL):
+
+Wherobots is dekart-only here (no local CLI fallback). Discover catalogs/tables via dekart's connection, and confirm the geometry column and that it is in EPSG:4326 before drafting. Sedona uses `ST_*` functions similar to PostGIS.
+
 ### Step 2: Resolve the target area
 
 When the user asks about a named area (city, district, country), query `division_area` first to discover how it is actually stored (subtype, class, naming conventions). Do not assume from general knowledge.
@@ -101,6 +137,17 @@ FROM OVERTURE_MAPS__DIVISIONS.CARTO.DIVISION_AREA
 WHERE country = '<ISO2>'
   AND LOWER(names:primary::string) LIKE '%<area_name>%'
 LIMIT 20;
+```
+
+Postgres / Wherobots:
+
+There is no Overture `division_area` to resolve against. Use whatever boundary source exists in the user's data (an admin-boundary table, a user-supplied polygon, or an explicit bbox the user provides). If no boundary geometry exists, fall back to an explicit lon/lat bbox supplied by the user. Compute the bbox of a chosen boundary row with:
+
+```sql
+-- Postgres / PostGIS
+SELECT ST_XMin(geom), ST_XMax(geom), ST_YMin(geom), ST_YMax(geom)
+FROM <boundary_table>
+WHERE <name_column> ILIKE '%<area_name>%';
 ```
 
 Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
@@ -176,12 +223,42 @@ WHERE s.subtype = 'rail'
 LIMIT 1000;
 ```
 
+Postgres / PostGIS:
+
+PostGIS has no `bbox` struct column; use the `&&` bounding-box operator (index-accelerated) as the scan gate, then `ST_Intersects` for correctness. Build the area envelope from a boundary row or an explicit bbox.
+
+```sql
+WITH area AS (
+  SELECT geom
+  FROM admin_boundaries
+  WHERE name ILIKE '%Berlin%'
+  LIMIT 1
+)
+SELECT s.id, s.geom
+FROM segments s
+CROSS JOIN area a
+WHERE s.subtype = 'rail'
+  -- index-accelerated bbox overlap gate
+  AND s.geom && a.geom
+  -- exact geometry test
+  AND ST_Intersects(s.geom, a.geom)
+LIMIT 1000;
+```
+
+If you only have an explicit bbox (no boundary geometry), gate with `ST_MakeEnvelope`:
+
+```sql
+AND s.geom && ST_MakeEnvelope(13.0883, 52.3382, 13.7612, 52.6755, 4326)
+```
+
+Ensure both geometries share SRID 4326; wrap with `ST_Transform(..., 4326)` if not. Sedona/Wherobots uses the same `ST_Intersects` pattern; prefer an explicit envelope predicate since `&&` may not be available.
+
 ### Step 4: Validate (mandatory)
 
 Do NOT present the query to the user without validating it first.
 
-1. Dry run (BigQuery only) to check estimated bytes.
-   * If using `dekart` use Dekart `update_query` to dry-run result (`dry_run.valid`, `dry_run.estimated_bytes_processed`) for validation.
+1. Cost / safety gate.
+   * BigQuery: dry run to check estimated bytes. If using `dekart` use Dekart `update_query` to dry-run result (`dry_run.valid`, `dry_run.estimated_bytes_processed`) for validation.
      If using `bq` CLI, run the query with `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` and parse the JSON output for `totalBytesProcessed`.
    * If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
    * If estimated bytes exceed budget: do NOT execute. Instead, rewrite the query to be cheaper (tighter bbox, more filters, lower H3 resolution, etc) and validate again.
@@ -254,6 +331,7 @@ Guardrails:
 3. For map export, use CSV mode with `--format CSV --silent`.
 4. Ensure a default Snow CLI connection is configured before running commands.
 5. If `SHOW DATABASES LIKE 'OVERTURE_MAPS__%'` returns no rows, ask the user to install Overture Maps from Snowflake Marketplace, then retry.
+
 
 ## Map Flow with `dekart` CLI
 
@@ -393,7 +471,9 @@ When uncertain about a specific pixel value or palette, read `references/map-sty
 
 Use H3 when the user requests spatial aggregation, heatmaps, density, or cell-based rollups.
 
-Namespace by location:
+**Dialect note:** the `jslibs.h3.*` functions below are BigQuery JS UDFs and exist only on BigQuery. For other engines use the native binding: Snowflake `H3_*` functions, Postgres the `h3`/`h3-pg` extension (`h3_lat_lng_to_cell`, `h3_cell_to_boundary`), Wherobots/Sedona `ST_H3*`. Confirm the function exists before using it.
+
+Namespace by location (BigQuery):
 - US/default: `jslibs.h3.*`
 - EU: `jslibs.eu_h3.*`
 
@@ -414,6 +494,9 @@ Cost rules:
 - `bq query` unavailable or auth fails: return exact fix commands only, no auto-install.
 - `snow sql` unavailable or auth fails: ask user to install/configure `snow`, then retry using `snow sql`.
 - Snowflake Overture shares missing (`SHOW DATABASES LIKE 'OVERTURE_MAPS__%'` returns no rows): ask user to install Overture data from Snowflake Marketplace, then continue.
+- Postgres: no local CLI fallback. If the dekart Postgres connector is missing or auth fails, ask the user to configure it via `dekart init`; do not attempt a CLI workaround.
+- PostGIS not enabled (`geometry_columns` errors): ask the user to run `CREATE EXTENSION postgis;`, then continue.
+- Wherobots: no local CLI fallback. If the dekart Wherobots connector is missing or auth fails, ask the user to configure it via `dekart init`; do not attempt a CLI workaround.
 - Over budget: do not execute, return cheaper variant.
 - Invalid query: return corrected SQL and rerun validation (`dry_run` for BigQuery, `COUNT(*)`/bounded preview for Snowflake).
 - Never install software automatically. Report prerequisite commands for the user to run.
