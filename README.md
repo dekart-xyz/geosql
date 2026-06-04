@@ -27,9 +27,9 @@ Or in Claude Code:
 
 ### Install Dekart for map rendering and PostGIS support
 
-GeoSQL optionally uses [Dekart](https://github.com/dekart-xyz/dekart): an open-source Kepler.gl backend with connectors for PostGIS, BigQuery, and Snowflake. You can run Dekart locally with one docker command, [self-host](https://dekart.xyz/docs/self-hosting/docker/) it on your own infrastructure, or use the [free tier SaaS](https://cloud.dekart.xyz?ref=geosql-github).
+GeoSQL optionally uses [Dekart](https://github.com/dekart-xyz/dekart): an open-source Kepler.gl backend with connectors for PostGIS, BigQuery, and Snowflake. You can run Dekart locally with one docker command, [self-host](https://dekart.xyz/docs/self-hosting/docker/) it on your own infrastructure, or use Dekart Cloud.
 
-Run Dekart locally:
+Run Dekart locally (skip this step to use [Dekart Cloud](https://cloud.dekart.xyz?ref=geosql-github)):
 ```bash
 docker run -p 8080:8080 dekartxyz/dekart
 ```
