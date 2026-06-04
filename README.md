@@ -1,84 +1,93 @@
-# geosql
+# GeoSQL
 
-Claude/Codex geospatial SQL skill for data scientists and analysts working with geospatial data on BigQuery and Snowflake.
+Claude/Codex skill for data scientists and analysts working with geospatial data on PostGIS, BigQuery, Snowflake, and Wherobots.
+
+> Note: No SaaS account needed. Works 100% locally or self-hosted.
 
 ![GeoSQL demo](assets/geosqldemo.gif)
 
-Describe what you want geographically, and skill writes and runs SQL against free map datasets (Overture Maps) in **BigQuery or Snowflake**, checks the cost, validates the answer, and (if you ask) shows you the map — without surprise bills or hand-waved results.
+> 4x improvement on geospatial tasks with map in the loop.
 
-Example questions it handles well:
+![Agent with maps loop, 4x performance](assets/agent-with-maps-4x.png)
 
-- "Show me all bike lanes in Amsterdam"
-- "How many buildings are in downtown Tokyo?"
-- "Map the rail network in Germany"
-- "Aggregate restaurant density in NYC by H3 cell"
+## Quick Start
 
-It works with any private GEOGRAPHY/GEOMETRY dataset too.
+With Python (interactive mode):
 
+```bash
+pip install geosql && geosql
+```
 
-## Install (Claude/Codex)
-
-In Claude Code (recommended):
+Or in Claude Code:
 
 ```
 /plugin marketplace add dekart-xyz/geosql
 /plugin install geosql
 ```
 
-With Python (interactive mode):
+### Install Dekart for map rendering and PostGIS support
 
+GeoSQL optionally uses [Dekart](https://github.com/dekart-xyz/dekart): an open-source Kepler.gl backend with connectors for PostGIS, BigQuery, and Snowflake. You can run Dekart locally with one docker command, [self-host](https://dekart.xyz/docs/self-hosting/docker/) it on your own infrastructure, or use the [free tier SaaS](https://cloud.dekart.xyz?ref=geosql-github).
+
+Run Dekart locally:
 ```bash
-pip install geosql
-geosql
+docker run -p 8080:8080 dekartxyz/dekart
 ```
 
-With Node.js:
+Install the Dekart CLI:
+```
+pip install dekart && dekart init
+```
+Follow CLI and dekart prompts to connect your PostGIS, BigQuery, Snowflake  or Wherobots database.
 
-```bash
-npx skills add dekart-xyz/geosql
+## Example prompts to try in Claude Code:
+
+Real estate analysis:
+```
+/geosql Show buildings with low school accessibility in Ottawa, render as a map
+```
+Site selection:
+```
+/geosql Find the top 10 locations for Sporting Goods Store in Seattle based on POI co-location and distance to the nearest competitor. Create a map.
+```
+EV charging infrastructure:
+```
+/geosql create map EV charger density along major Romanian roads, highlighting how many charging stations are within 5 km of each motorway, trunk, or primary road segment.
 ```
 
-Then type `/geosql` in your agent's prompt to use the skill.
+## How it works
 
+GeoSQL runs an agent loop with a map in it.
 
-### Connect to your warehouse
+1. **Discovery.** The skill explores your warehouse metadata (tables, columns, types) instead of guessing schemas. Works with Overture Maps shares on BigQuery and Snowflake, and your private tables on PostGIS, BigQuery, Snowflake, or Wherobots.
+2. **SQL.** The agent writes spatial SQL using the right functions for your engine (`ST_INTERSECTS`, `ST_DISTANCE`, H3, bbox overlap for partition pruning, and so on).
+3. **Cost check.** On BigQuery, every query is dry-run first to estimate bytes scanned. A 10 GiB billing cap is enforced by default. Over-budget queries get rewritten cheaper (tighter bbox, lower H3 resolution, more filters) instead of executed.
+4. **Geometry validation.** The agent computes total area (polygons) or total length (lines) as a sanity check, and cross-checks against domain knowledge.
+5. **Map feedback.** When available, the agent renders the result through Dekart, looks at the rendered image, and corrects geometry mistakes the text-only loop would miss. This is the loop that gets the 4x improvement.
 
-GeoSQL can use you data warehouse if data if you have `bq` or `snow` CLI installed and authenticated with default project/connection (!) configured.
+The skill uses your local CLI authentication (`bq`, `snow`, `dekart`), so warehouse credentials never go to the agent.
 
+## Benchmarks
 
-### Enable map rendering (recommended)
+GeoSQL ships with a reproducible eval suite under `evals/`. Each case asserts specific behaviors (cost guardrails, validation steps, correct result), not just "did the agent answer."
+
+Current results on the included suite:
+
+| Case | Assertions | Pass rate |
+| --- | --- | --- |
+| `london-boroughs` | 4 | 100% |
+| `berlin-create-map` | 3 | 100% |
+| `paris-boundaries` | 1 | 100% |
+| **Total** | **8** | **100%** |
+
+Average: 3,085 tokens per turn, 72 s duration per turn.
+
+The **4x improvement** chart above compares the same task set with and without the map-in-loop step. Without maps, the agent's text-only validation misses geometry-class errors (mistaking a neighborhood polygon for a metro-area perimeter, double-counting overlapping features, picking the wrong join key on coordinate-reference systems). Adding the rendered map as a tool call lets the agent see those mistakes and self-correct.
+
+Run the suite yourself:
 
 ```bash
-pip install dekart
-dekart init
+python evals/run.py
 ```
 
-## Feature List
-
-### 🗺️ Data discovery
-- Auto-explores warehouse metadata (tables, columns, types) instead of guessing.
-- Works with **BigQuery** (`bigquery-public-data.overture_maps`) and **Snowflake** (`OVERTURE_MAPS__*` marketplace shares).
-
-### 💸 Cost safety
-- **Always dry-runs** BigQuery queries first to estimate bytes scanned.
-- Enforces a **10 GiB billing cap** by default (`--maximum_bytes_billed`).
-- Refuses to execute over-budget queries — rewrites them cheaper instead (tighter bbox, lower H3 resolution, more filters).
-- Uses the **bbox overlap pattern** (not containment) for fast partition pruning, then `ST_INTERSECTS` for geographic correctness.
-
-### ✅ Mandatory validation
-Before showing you a final query, it:
-1. Dry-runs for cost.
-2. Runs `COUNT(*)` to confirm rows exist and are reasonable.
-3. Computes **total area** (polygons) or **total length** (lines) as a sanity check.
-4. Cross-checks numbers against domain knowledge — debugs if something looks off.
-
-### 🔷 H3 spatial aggregation
-- Built-in support for hexagonal grid rollups (heatmaps, density).
-- Region-aware namespaces (`jslibs.h3.*` for US, `jslibs.eu_h3.*` for EU).
-- Cost rules: filter first, aggregate before adding heavy boundary geometry.
-
-### 🗺️ Map rendering
-- Uses the `dekart` CLI to turn results into an **interactive map**.
-- Workflow: create report → dataset → upload CSV → snapshot → inspect.
-- Only triggers when you explicitly say "map" — never auto-renders.
-- Smart styling rules: picks layer type by question (Points for positions, H3 for density, Arcs for origin-destination, etc.), uses appropriate palettes, locks zoom to the insight.
+See `evals/RUNBOOK.md` for setup and how to add new cases. PRs with new evals welcome.
