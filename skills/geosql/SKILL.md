@@ -349,6 +349,26 @@ The CLI stores map artifacts in this hierarchy:
 - `query`: SQL attached to a dataset/connection and executed asynchronously.
 - `job`: execution instance for a query (run_query -> check_job_status).
 
+Important IDs:
+- `create_dataset` returns the dataset id at `result.id`.
+- `create_query` returns `result.dataset_id` and `result.query_id`.
+- `run_query` returns the job id at `result.query_job.id`.
+- In Kepler `map_config`, every layer `config.dataId`, filter `dataId`, and tooltip key must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label.
+
+Useful extraction examples:
+
+```bash
+REPORT_ID=$(dekart call --name create_report --args '{}' --extract result.report.id)
+DATASET_ID=$(dekart call --name create_dataset --args "{\"report_id\":\"$REPORT_ID\"}" --extract result.id)
+QUERY_ID=$(dekart call --name create_query --args "{\"dataset_id\":\"$DATASET_ID\",\"connection_id\":\"$CONNECTION_ID\"}" --extract result.query_id)
+dekart call --name update_query --args "{\"query_id\":\"$QUERY_ID\",\"query_text\":\"$SQL\"}"
+JOB_ID=$(dekart call --name run_query --args "{\"query_id\":\"$QUERY_ID\"}" --extract result.query_job.id)
+```
+
+`create_query` creates empty query metadata. Always call `update_query` with SQL before `run_query`.
+
+For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Prefer `--args-file`, or generate the JSON args with a JSON-aware tool such as `jq` or Python.
+
 Control plane depends on execution mode:
 - Query mode (connectors available): create `report` -> create `dataset` -> create `query`, then run async query jobs.
 - File-upload mode (no connectors): create `report` -> create `dataset` -> create `file`, then upload CSV and complete multipart flow.
@@ -380,7 +400,7 @@ Do not run both flows for the same task unless user explicitly asks.
 4. Discover MCP tools and schemas from `dekart tools`.
 5. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
-   - dataset creation tool: requires `report_id`
+   - dataset creation tool: requires `report_id` and returns the dataset id as `result.id`
    - file creation tool: requires `dataset_id`
 6. Execute control plane in this exact order: report -> dataset -> file.
 7. Upload CSV with `dekart upload-file` and use returned `complete` payload/status.
@@ -409,10 +429,10 @@ Do not run both flows for the same task unless user explicitly asks.
 4. Discover MCP tools and schemas from `dekart tools`.
 5. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
-   - dataset creation tool: requires `report_id`
-   - query creation tool: requires `dataset_id` + `connection_id`
+   - dataset creation tool: requires `report_id` and returns the dataset id as `result.id`
+   - query creation tool: requires `dataset_id` + `connection_id` and returns `result.query_id`
    - query update tool: requires `query_id` + `query_text`
-   - query run tool: requires `query_id`
+   - query run tool: requires `query_id` and returns `result.query_job.id`
    - job status tool: requires `job_id`
 6. Execute control plane in this exact order: report -> dataset -> query.
 7. Update SQL via query update tool:
@@ -431,13 +451,14 @@ Do not run both flows for the same task unless user explicitly asks.
 ### Failure handling
 * Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.
 * If create-report or create-dataset returns 404 it likely issue with token or auth. Ask user to re-run `dekart init` and confirm before retrying.
-* Snapshot equals browser. If the snapshot looks wrong, the config is wrong.
+* Snapshot validation is mandatory, but diagnose in order: first verify map config bindings, columns, and view; if those are correct and the PNG is blank or missing WebGL features, treat it as a snapshot renderer issue and verify the interactive report.
 * If remote snapshot fails with timeout (for example HTTP 504 / `snapshot timeout`), ask the user to enable local snapshots:
   `dekart snapshot-local install`
   Then retry snapshot with `dekart snapshot --report-id <report_id>`.
 * Datasets auto-style by default. Kepler would apply a default styling if no config is provided for dataset provided.
 * If snapshot shows only basemap (no features), debug binding first:
   - confirm `layer.config.dataId` points to the report dataset id
+  - confirm tooltip `fieldsToShow` keys and filter `dataId` values also use the report dataset id
   - confirm bound column names match exported dataset headers exactly (case-sensitive). Note: snowflake export columns names are uppercase by default.
 * Never present `report_path` as a Map URL or user-facing link.
 * If `report_url` is missing, report that the CLI did not return a usable Map URL and include `report_path` only as a diagnostic path.

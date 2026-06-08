@@ -2,6 +2,53 @@
 
 Deep reference for styling choices after data is loaded. SKILL.md contains the short rules; this file explains the why and lists concrete pixel values.
 
+## 0. Dekart `dataId` binding
+
+Dekart reports use the report `dataset_id` as the Kepler data id.
+
+Use the same `dataset_id` in:
+
+- `visState.layers[*].config.dataId`
+- `visState.filters[*].dataId`
+- `visState.interactionConfig.tooltip.fieldsToShow` keys
+
+Do not use `query_id`, `file_id`, table names, or dataset labels as `dataId` values.
+
+Minimal GeoJSON layer:
+
+```json
+{
+  "id": "main",
+  "type": "geojson",
+  "config": {
+    "dataId": "<dataset_id>",
+    "label": "Result",
+    "columns": {"geojson": "geometry"},
+    "isVisible": true,
+    "visConfig": {
+      "filled": true,
+      "stroked": false,
+      "opacity": 0.8
+    }
+  }
+}
+```
+
+Minimal tooltip binding:
+
+```json
+{
+  "interactionConfig": {
+    "tooltip": {
+      "enabled": true,
+      "fieldsToShow": {
+        "<dataset_id>": [{"name": "name"}, {"name": "value"}]
+      }
+    }
+  }
+}
+```
+
 ## 1. Pick the layer for the question, not the data shape
 
 | Question | Best layer | Avoid |
