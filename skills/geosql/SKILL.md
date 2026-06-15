@@ -109,6 +109,30 @@ Wherobots (Sedona / Spatial SQL):
 
 Wherobots is dekart-only here (no local CLI fallback). Discover catalogs/tables via dekart's connection, and confirm the geometry column and that it is in EPSG:4326 before drafting. Sedona uses `ST_*` functions similar to PostGIS.
 
+Run Wherobots discovery SQL through Dekart query mode. Use `dekart call --name list_connections --args '{}' --json` first and select a `CONNECTION_TYPE_WHEROBOTS` connection id, then create `report -> dataset -> query` and run the SQL with `update_query` / `run_query` / `check_job_status`.
+
+```sql
+SHOW CATALOGS LIKE 'wherobots%';
+```
+
+```sql
+SHOW SCHEMAS IN wherobots_open_data;
+```
+
+```sql
+SHOW TABLES IN wherobots_open_data.overture_maps_foundation;
+```
+
+```sql
+DESCRIBE TABLE wherobots_open_data.overture_maps_foundation.divisions_division_area;
+```
+
+```sql
+DESCRIBE TABLE wherobots_open_data.overture_maps_foundation.transportation_segment;
+```
+
+Overture tables in Wherobots use `<theme>_<type>` names, for example `divisions_division_area`, `transportation_segment`, `places_place`, and `buildings_building`. For map output, select a geometry column aliased exactly as lowercase `geometry`.
+
 ### Step 2: Resolve the target area
 
 When the user asks about a named area (city, district, country), query `division_area` first to discover how it is actually stored (subtype, class, naming conventions). Do not assume from general knowledge.
@@ -139,18 +163,38 @@ WHERE country = '<ISO2>'
 LIMIT 20;
 ```
 
-Postgres / Wherobots:
+Postgres:
 
 There is no Overture `division_area` to resolve against. Use whatever boundary source exists in the user's data (an admin-boundary table, a user-supplied polygon, or an explicit bbox the user provides). If no boundary geometry exists, fall back to an explicit lon/lat bbox supplied by the user. Compute the bbox of a chosen boundary row with:
 
 ```sql
--- Postgres / PostGIS
 SELECT ST_XMin(geom), ST_XMax(geom), ST_YMin(geom), ST_YMax(geom)
 FROM <boundary_table>
 WHERE <name_column> ILIKE '%<area_name>%';
 ```
 
 Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
+
+Wherobots (Sedona / Spatial SQL):
+
+Use Wherobots Overture `divisions_division_area` when it is available. Run this through Dekart query mode:
+
+```sql
+SELECT
+  subtype,
+  class,
+  names.primary AS name_primary,
+  bbox.xmin AS xmin,
+  bbox.xmax AS xmax,
+  bbox.ymin AS ymin,
+  bbox.ymax AS ymax
+FROM wherobots_open_data.overture_maps_foundation.divisions_division_area
+WHERE country = '<ISO2>'
+  AND LOWER(names.primary) LIKE '%<area_name>%'
+LIMIT 20;
+```
+
+If no matching boundary exists in Wherobots Overture, use another boundary table visible through the same Wherobots connection, a user-supplied polygon, or an explicit lon/lat bbox supplied by the user. Do not switch to a direct Wherobots notebook or SDK path.
 
 ### Step 3: Draft the query
 
@@ -251,7 +295,36 @@ If you only have an explicit bbox (no boundary geometry), gate with `ST_MakeEnve
 AND s.geom && ST_MakeEnvelope(13.0883, 52.3382, 13.7612, 52.6755, 4326)
 ```
 
-Ensure both geometries share SRID 4326; wrap with `ST_Transform(..., 4326)` if not. Sedona/Wherobots uses the same `ST_Intersects` pattern; prefer an explicit envelope predicate since `&&` may not be available.
+Ensure both geometries share SRID 4326; wrap with `ST_Transform(..., 4326)` if not. Sedona/Wherobots uses the same `ST_Intersects` pattern; prefer an explicit envelope predicate instead of the PostGIS-only `&&` operator.
+
+Wherobots (Sedona / Spatial SQL):
+
+Wherobots Overture examples must run through Dekart query mode. Sedona does not support the PostGIS `&&` operator, so use the explicit bbox overlap pattern plus `ST_Intersects`. Keep the geospatial output column aliased exactly as lowercase `geometry`.
+
+```sql
+WITH area AS (
+  SELECT geometry
+  FROM wherobots_open_data.overture_maps_foundation.divisions_division_area
+  WHERE country = 'DE'
+    AND region = 'DE-BE'
+    AND subtype = 'region'
+    AND class = 'land'
+  LIMIT 1
+)
+SELECT
+  s.id,
+  s.subtype,
+  s.geometry AS geometry
+FROM wherobots_open_data.overture_maps_foundation.transportation_segment s
+CROSS JOIN area a
+WHERE s.subtype = 'rail'
+  AND s.bbox.xmax >= 13.08834457397461
+  AND s.bbox.xmin <= 13.761162757873535
+  AND s.bbox.ymax >= 52.33823776245117
+  AND s.bbox.ymin <= 52.67551040649414
+  AND ST_Intersects(s.geometry, a.geometry)
+LIMIT 1000;
+```
 
 ### Step 4: Validate (mandatory)
 
@@ -266,6 +339,7 @@ Do NOT present the query to the user without validating it first.
 3. Validate geometry magnitude when possible:
    - If output includes polygonal `GEOGRAPHY`, compute total area (for example `SUM(ST_AREA(geometry))`) and return units in square meters (and optionally km²).
    - If output includes line `GEOGRAPHY`, compute total length (for example `SUM(ST_LENGTH(geometry))`) and return units in meters (and optionally km).
+   - If output includes `geometry`, measurements are CRS units. For EPSG:4326 geometry, do not report meters; transform/cast first or label the result as CRS units.
    - If geometry is point-only or no geometry is selected, explicitly state area/length validation is not applicable.
 4. Sanity-check whether row count and area/length are reasonable for the place and feature type (use domain knowledge). If numbers look implausible, debug before presenting.
 5. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types.
@@ -499,6 +573,10 @@ Functions:
 - `jslibs.h3.ST_H3_POLYFILLFROMGEOG(<polygon>, <resolution>)` - polygon fill
 - `jslibs.h3.ST_H3_BOUNDARY(<h3_index>)` - cell boundary for visualization
 
+Wherobots/Sedona H3:
+- `ST_H3CellIDs(geometry, <resolution>, <fullCover>)` returns H3 cell ids for a geometry.
+- `ST_H3ToGeom(<array_of_cells>)` converts H3 ids back to geometry for map output.
+
 Cost rules:
 1. Apply `WHERE` + hardcoded bbox first, then compute H3.
 2. Return `h3` + aggregate metrics before adding boundaries.
@@ -515,5 +593,5 @@ Cost rules:
 - PostGIS not enabled (`geometry_columns` errors): ask the user to run `CREATE EXTENSION postgis;`, then continue.
 - Wherobots: no local CLI fallback. If the dekart Wherobots connector is missing or auth fails, ask the user to configure it via `dekart init`; do not attempt a CLI workaround.
 - Over budget: do not execute, return cheaper variant.
-- Invalid query: return corrected SQL and rerun validation (`dry_run` for BigQuery, `COUNT(*)`/bounded preview for Snowflake).
+- Invalid query: return corrected SQL and rerun validation (`dry_run` for BigQuery, `COUNT(*)`/bounded preview for Snowflake, tightly bounded `COUNT(*)`/preview execution through Dekart query mode for Wherobots).
 - Never install software automatically. Report prerequisite commands for the user to run.
