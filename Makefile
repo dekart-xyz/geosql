@@ -1,27 +1,32 @@
-.PHONY: help shell-dekart-claude shell-bq-claude shell-no-warehouses _shell-claude-base
+.PHONY: help shell-dekart-claude shell-dekart-copilot shell-bq-claude shell-no-warehouses _shell-agent-base
 
 help:
 	@echo "Targets:"
 	@echo "  make shell-dekart-claude  # isolated shell: has claude+dekart, hides bq+snow"
+	@echo "  make shell-dekart-copilot # isolated shell: has copilot+dekart, hides bq+snow"
 	@echo "  make shell-bq-claude      # isolated shell: has claude+bq, hides dekart+snow"
 
 shell-dekart-claude:
-	@$(MAKE) _shell-claude-base INCLUDE_DEKART=1 INCLUDE_BQ=0 INCLUDE_SNOW=0
+	@$(MAKE) _shell-agent-base AGENT=claude INCLUDE_DEKART=1 INCLUDE_BQ=0 INCLUDE_SNOW=0
+
+shell-dekart-copilot:
+	@$(MAKE) _shell-agent-base AGENT=copilot INCLUDE_DEKART=1 INCLUDE_BQ=0 INCLUDE_SNOW=0
 
 shell-bq-claude:
-	@$(MAKE) _shell-claude-base INCLUDE_DEKART=0 INCLUDE_BQ=1 INCLUDE_SNOW=0
+	@$(MAKE) _shell-agent-base AGENT=claude INCLUDE_DEKART=0 INCLUDE_BQ=1 INCLUDE_SNOW=0
 
-_shell-claude-base:
+_shell-agent-base:
 	@set -eu; \
 	REAL_HOME="$$HOME"; \
 	REAL_XDG_CONFIG_HOME="$${XDG_CONFIG_HOME:-$$HOME/.config}"; \
-	CLAUDE_BIN="$$(command -v claude || true)"; \
+	AGENT="$${AGENT:-claude}"; \
+	AGENT_BIN="$$(command -v "$$AGENT" || true)"; \
 	DEKART_BIN="$$(command -v dekart || true)"; \
 	BQ_BIN="$$(command -v bq || true)"; \
 	SNOW_BIN="$$(command -v snow || true)"; \
 	GCLOUD_BIN="$$(command -v gcloud || true)"; \
-	if [ -z "$$CLAUDE_BIN" ]; then \
-		echo "Need 'claude' in PATH before running this target." >&2; \
+	if [ -z "$$AGENT_BIN" ]; then \
+		echo "Need '$$AGENT' in PATH before running this target." >&2; \
 		exit 1; \
 	fi; \
 	if [ "$${INCLUDE_DEKART}" = "1" ] && [ -z "$$DEKART_BIN" ]; then \
@@ -47,20 +52,23 @@ _shell-claude-base:
 	BIN_DIR="$$(mktemp -d)"; \
 	printf '%s\n' '#!/usr/bin/env bash' \
 		'set -euo pipefail' \
-		'export HOME="$${CLAUDE_LOGIN_HOME:-$$HOME}"' \
-		'export XDG_CONFIG_HOME="$${CLAUDE_LOGIN_XDG_CONFIG_HOME:-$${XDG_CONFIG_HOME:-$$HOME/.config}}"' \
+		'export HOME="$${AGENT_LOGIN_HOME:-$$HOME}"' \
+		'export XDG_CONFIG_HOME="$${AGENT_LOGIN_XDG_CONFIG_HOME:-$${XDG_CONFIG_HOME:-$$HOME/.config}}"' \
 		'export PATH="$$HOME/.local/bin:$$PATH"' \
-		'exec "__CLAUDE_BIN__" "$$@"' > "$$BIN_DIR/claude"; \
-	sed -i.bak "s|__CLAUDE_BIN__|$$CLAUDE_BIN|g" "$$BIN_DIR/claude"; rm -f "$$BIN_DIR/claude.bak"; \
-	chmod +x "$$BIN_DIR/claude"; \
+		'exec "__AGENT_BIN__" "$$@"' > "$$BIN_DIR/$$AGENT"; \
+	sed -i.bak "s|__AGENT_BIN__|$$AGENT_BIN|g" "$$BIN_DIR/$$AGENT"; rm -f "$$BIN_DIR/$$AGENT.bak"; \
+	chmod +x "$$BIN_DIR/$$AGENT"; \
 	if [ "$${INCLUDE_DEKART}" = "1" ]; then ln -s "$$DEKART_BIN" "$$BIN_DIR/dekart"; fi; \
 	if [ "$${INCLUDE_BQ}" = "1" ]; then ln -s "$$BQ_BIN" "$$BIN_DIR/bq"; fi; \
 	if [ "$${INCLUDE_BQ}" = "1" ]; then ln -s "$$GCLOUD_BIN" "$$BIN_DIR/gcloud"; fi; \
 	if [ "$${INCLUDE_SNOW}" = "1" ]; then ln -s "$$SNOW_BIN" "$$BIN_DIR/snow"; fi; \
-	for b in bash sh env cat ls mkdir rm mktemp pwd echo sed awk grep; do \
+	for b in bash sh env cat ls mkdir rm mktemp pwd echo sed awk grep python3 python; do \
 		p="$$(command -v $$b || true)"; \
 		if [ -n "$$p" ]; then ln -sf "$$p" "$$BIN_DIR/$$b"; fi; \
 	done; \
+	if [ ! -e "$$BIN_DIR/python" ] && [ -e "$$BIN_DIR/python3" ]; then \
+		ln -sf "$$BIN_DIR/python3" "$$BIN_DIR/python"; \
+	fi; \
 	cleanup() { \
 		rm -rf "$$CFG_ROOT" "$$HOME_ROOT" "$$CACHE_ROOT" "$$STATE_ROOT" "$$BIN_DIR"; \
 	}; \
@@ -69,8 +77,8 @@ _shell-claude-base:
 	export HOME="$$HOME_ROOT"; \
 	export XDG_CACHE_HOME="$$CACHE_ROOT"; \
 	export XDG_STATE_HOME="$$STATE_ROOT"; \
-	export CLAUDE_LOGIN_HOME="$$REAL_HOME"; \
-	export CLAUDE_LOGIN_XDG_CONFIG_HOME="$$REAL_XDG_CONFIG_HOME"; \
+	export AGENT_LOGIN_HOME="$$REAL_HOME"; \
+	export AGENT_LOGIN_XDG_CONFIG_HOME="$$REAL_XDG_CONFIG_HOME"; \
 	if [ -f "$$REAL_HOME/.claude.json" ]; then \
 		cp "$$REAL_HOME/.claude.json" "$$HOME/.claude.json"; \
 	fi; \
@@ -96,18 +104,46 @@ _shell-claude-base:
 			cp -R "$$item" "$$XDG_CONFIG_HOME/claude/"; \
 		done; \
 	fi; \
+	mkdir -p "$$HOME/.copilot"; \
+	if [ -d "$$REAL_HOME/.copilot" ]; then \
+		for item in "$$REAL_HOME/.copilot"/.[!.]* "$$REAL_HOME/.copilot"/..?* "$$REAL_HOME/.copilot"/*; do \
+			[ -e "$$item" ] || continue; \
+			name="$$(basename "$$item")"; \
+			if [ "$$name" = "skills" ]; then \
+				continue; \
+			fi; \
+			cp -R "$$item" "$$HOME/.copilot/"; \
+		done; \
+	fi; \
+	if [ -d "$$REAL_XDG_CONFIG_HOME/copilot" ]; then \
+		mkdir -p "$$XDG_CONFIG_HOME/copilot"; \
+		for item in "$$REAL_XDG_CONFIG_HOME/copilot"/.[!.]* "$$REAL_XDG_CONFIG_HOME/copilot"/..?* "$$REAL_XDG_CONFIG_HOME/copilot"/*; do \
+			[ -e "$$item" ] || continue; \
+			name="$$(basename "$$item")"; \
+			if [ "$$name" = "skills" ]; then \
+				continue; \
+			fi; \
+			cp -R "$$item" "$$XDG_CONFIG_HOME/copilot/"; \
+		done; \
+	fi; \
 	export PATH="$$BIN_DIR:/usr/bin:/bin:/usr/sbin:/sbin"; \
 	WORKDIR="$$(pwd)/tmp"; \
 	mkdir -p "$$WORKDIR"; \
 	cd "$$WORKDIR"; \
-	echo "claude --dangerously-skip-permissions" > "$$HOME/.bash_history"; \
+	if [ "$$AGENT" = "claude" ]; then \
+		echo "claude --dangerously-skip-permissions" > "$$HOME/.bash_history"; \
+	elif [ "$$AGENT" = "copilot" ]; then \
+		echo "copilot --yolo" > "$$HOME/.bash_history"; \
+	else \
+		echo "$$AGENT" > "$$HOME/.bash_history"; \
+	fi; \
 	echo "Isolated shell started."; \
 	echo "PWD=$$(pwd)"; \
 	echo "XDG_CONFIG_HOME=$$XDG_CONFIG_HOME"; \
 	echo "HOME=$$HOME"; \
-	echo "Claude config copied (skills excluded)."; \
+	echo "$$AGENT config copied (skills excluded)."; \
 	echo "PATH=$$PATH"; \
-	echo "claude: $$(command -v claude)"; \
+	echo "$$AGENT: $$(command -v "$$AGENT")"; \
 	echo "dekart: $$(command -v dekart || echo missing)"; \
 	echo "bq: $$(command -v bq || echo missing)"; \
 	echo "gcloud: $$(command -v gcloud || echo missing)"; \

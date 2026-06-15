@@ -53,12 +53,14 @@ Explicit installs:
 ```bash
 geosql install claude
 geosql install codex
+geosql install copilot
 ```
 
 Expected paths:
 
 - `~/.claude/skills/geosql/SKILL.md`
 - `~/.codex/skills/geosql/SKILL.md`
+- `~/.copilot/skills/geosql/SKILL.md`
 
 ## 5) Verify repository contains no legacy naming
 
@@ -124,3 +126,29 @@ claude --help | rg -i "model|permission|bypass|danger"
 Then run the equivalent bypass-permissions flag supported by your version.
 
 Use bypass mode only in trusted local repositories.
+
+## 8) Run GitHub Copilot in isolated Dekart shell (no `bq`/`snow`)
+
+From repo root:
+
+```bash
+make shell-dekart-copilot
+```
+
+Inside the shell:
+
+```bash
+command -v copilot
+command -v dekart
+command -v bq || true
+command -v snow || true
+python -m geosql install copilot
+test -f ~/.copilot/skills/geosql/SKILL.md
+test -f ~/.copilot/skills/geosql/references/map-styling.md
+```
+
+Then start Copilot and verify it recognizes the GeoSQL skill with a prompt like:
+
+```text
+/geosql Show EV charger density along major roads and render a map
+```

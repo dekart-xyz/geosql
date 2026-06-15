@@ -1,6 +1,6 @@
 # GeoSQL
 
-Claude/Codex skill for data scientists and analysts working with geospatial data on PostGIS, BigQuery, Snowflake, and Wherobots.
+Claude, Codex, and GitHub Copilot skill for data scientists and analysts working with geospatial data on PostGIS, BigQuery, Snowflake, and Wherobots.
 
 > Note: No SaaS account needed. Works 100% locally or self-hosted.
 
@@ -18,11 +18,25 @@ With Python (interactive mode):
 pip install geosql && geosql
 ```
 
+Install directly into a supported agent:
+
+```bash
+geosql install claude
+geosql install codex
+geosql install copilot
+```
+
 Or in Claude Code:
 
 ```
 /plugin marketplace add dekart-xyz/geosql
 /plugin install geosql
+```
+
+After `geosql install copilot`, use GeoSQL from VS Code Copilot or Copilot CLI with prompts such as:
+
+```
+/geosql Show EV charger density along major roads and render a map
 ```
 
 ### Install Dekart for map rendering and PostGIS support
@@ -40,7 +54,7 @@ pip install dekart && dekart init
 ```
 Follow CLI and dekart prompts to connect your PostGIS, BigQuery, Snowflake  or Wherobots database.
 
-## Example prompts to try in Claude Code:
+## Example prompts to try in your agent:
 
 Real estate analysis:
 ```

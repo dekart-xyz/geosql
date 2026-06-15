@@ -23,7 +23,7 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command")
 
     install = subparsers.add_parser("install", help="Install geosql into a supported CLI.")
-    install.add_argument("target", choices=["claude", "codex", "all"], help="CLI target to install geosql into.")
+    install.add_argument("target", choices=["claude", "codex", "copilot", "all"], help="CLI target to install geosql into.")
 
     return parser
 
@@ -243,26 +243,36 @@ def install_codex_skill():
     return install_skill_at(Path.home() / ".codex" / "skills" / "geosql", "Codex")
 
 
+def install_copilot_skill():
+    """Install geosql files into GitHub Copilot skill directory."""
+    return install_skill_at(Path.home() / ".copilot" / "skills" / "geosql", "GitHub Copilot")
+
+
 def detect_installed_agents():
     """Detect available agents and return ordered list of target ids."""
     detected = []
     claude_present = shutil.which("claude") is not None or (Path.home() / ".claude").exists()
     codex_present = shutil.which("codex") is not None or (Path.home() / ".codex").exists()
+    copilot_present = shutil.which("copilot") is not None or (Path.home() / ".copilot").exists()
     if claude_present:
         detected.append("claude")
     if codex_present:
         detected.append("codex")
+    if copilot_present:
+        detected.append("copilot")
     return detected
 
 
 def manual_install_hint():
     """Print manual install guidance when no known agent is detected."""
-    print("No supported agents detected (Claude Code / Codex).")
+    print("No supported agents detected (Claude Code / Codex / GitHub Copilot).")
     print("Manual install steps:")
     print(f"  1) Claude: copy {ROOT_SKILL_FILE} -> ~/.claude/skills/geosql/SKILL.md")
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.claude/skills/geosql/references/")
     print(f"  2) Codex:  copy {ROOT_SKILL_FILE} -> ~/.codex/skills/geosql/SKILL.md")
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.codex/skills/geosql/references/")
+    print(f"  3) Copilot: copy {ROOT_SKILL_FILE} -> ~/.copilot/skills/geosql/SKILL.md")
+    print(f"     and {ROOT_REFERENCES_DIR} -> ~/.copilot/skills/geosql/references/")
     return 1
 
 
@@ -281,6 +291,9 @@ def run_interactive_install():
     if "codex" in detected:
         labels.append("Install for Codex")
         targets.append("codex")
+    if "copilot" in detected:
+        labels.append("Install for GitHub Copilot")
+        targets.append("copilot")
     if len(detected) > 1:
         labels.append("Install for All detected")
         targets.append("all")
@@ -319,10 +332,13 @@ def handle_install_target(target):
         return install_claude_skill()
     if target == "codex":
         return install_codex_skill()
+    if target == "copilot":
+        return install_copilot_skill()
     if target == "all":
         code = 0
         code = max(code, install_claude_skill())
         code = max(code, install_codex_skill())
+        code = max(code, install_copilot_skill())
         return code
     print(f"Unsupported install target: {target}", file=sys.stderr)
     return 2
