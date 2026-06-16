@@ -109,27 +109,14 @@ Wherobots (Sedona / Spatial SQL):
 
 Wherobots is dekart-only here (no local CLI fallback). Discover catalogs/tables via dekart's connection, and confirm the geometry column and that it is in EPSG:4326 before drafting. Sedona uses `ST_*` functions similar to PostGIS.
 
-Run Wherobots discovery SQL through Dekart query mode. Use `dekart call --name list_connections --args '{}' --json` first and select a `CONNECTION_TYPE_WHEROBOTS` connection id, then create `report -> dataset -> query` and run the SQL with `update_query` / `run_query` / `check_job_status`.
+Run Wherobots discovery SQL through Dekart query mode. Use `dekart call --name list_connections --args '{}' --json` first and select a `CONNECTION_TYPE_WHEROBOTS` connection id, then create `report -> dataset -> query`, run the SQL with `update_query` / `run_query`, and fetch rows with `dekart fetch-job --wait`.
+
+Avoid `SHOW` / `DESCRIBE`. Prefer bounded row previews and metadata queries that return rows, for example:
 
 ```sql
-SHOW CATALOGS LIKE 'wherobots%';
+SELECT * FROM wherobots_open_data.overture_maps_foundation.divisions_division_area LIMIT 5;
 ```
 
-```sql
-SHOW SCHEMAS IN wherobots_open_data;
-```
-
-```sql
-SHOW TABLES IN wherobots_open_data.overture_maps_foundation;
-```
-
-```sql
-DESCRIBE TABLE wherobots_open_data.overture_maps_foundation.divisions_division_area;
-```
-
-```sql
-DESCRIBE TABLE wherobots_open_data.overture_maps_foundation.transportation_segment;
-```
 
 Overture tables in Wherobots use `<theme>_<type>` names, for example `divisions_division_area`, `transportation_segment`, `places_place`, and `buildings_building`. For map output, select a geometry column aliased exactly as lowercase `geometry`.
 
@@ -421,7 +408,7 @@ The CLI stores map artifacts in this hierarchy:
 - `dataset`: one data layer slot inside a report.
 - `file`: uploaded data artifact attached to a dataset.
 - `query`: SQL attached to a dataset/connection and executed asynchronously.
-- `job`: execution instance for a query (run_query -> check_job_status).
+- `job`: execution instance for a query (run_query -> fetch-job --wait).
 
 Important IDs:
 - `create_dataset` returns the dataset id at `result.id`.
@@ -453,7 +440,7 @@ Choose exactly one flow after gate/confirmation:
 
 1. Query mode:
    - Use when `list_connections` shows at least one usable warehouse connector.
-   - Execution path: `report -> dataset -> query -> run_query -> check_job_status`.
+   - Execution path: `report -> dataset -> query -> run_query -> fetch-job --wait -> read result rows`.
 2. File-upload mode:
    - Use when no usable connector is available.
    - Execution path: `report -> dataset -> file -> upload-file`.
@@ -495,7 +482,7 @@ Do not run both flows for the same task unless user explicitly asks.
 
 ### Query mode (connectors available)
 
-1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`.
+1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart fetch-job --help`.
 2. Gate: use this flow by default when Dekart is installed and `list_connections` shows at least one usable connector; do not use this flow when Dekart is missing or no usable connector exists.
 3. Once gated-in, confirm available connections:
    - `dekart call --name list_connections --args '{}' --json`
@@ -507,15 +494,20 @@ Do not run both flows for the same task unless user explicitly asks.
    - query creation tool: requires `dataset_id` + `connection_id` and returns `result.query_id`
    - query update tool: requires `query_id` + `query_text`
    - query run tool: requires `query_id` and returns `result.query_job.id`
-   - job status tool: requires `job_id`
+   - job status tool: requires `job_id`; use only for diagnostics when `fetch-job --wait` fails or times out.
 6. Execute control plane in this exact order: report -> dataset -> query.
 7. Update SQL via query update tool:
    - SQL must include geospatial output aliased exactly as lowercase `"geometry"`.
 8. Run query asynchronously via run tool and capture `job_id`.
-9. Poll job status with `check_job_status` until terminal state:
-   - success: `JOB_STATUS_DONE` and empty `job_error`
-   - failure: non-empty `job_error` (stop and report error)
-10. Validate map output with snapshot after successful job completion:
+9. Wait for the job and fetch result rows in one command; do not hand-roll a poller:
+   `dekart fetch-job --job-id <id> --wait --timeout 300 --interval 5 --out <file>.parquet --json`
+   - Use the `job_id` from `result.query_job.id`.
+   - Treat a zero exit from `fetch-job --wait` plus a non-empty output parquet as successful fetch.
+   - Do not parse `fetch-job --json` as the tool status response; it may return flattened download metadata such as `status`, `path`, `bytes`, and `query_id`.
+   - If you need diagnostic job status, the canonical tool payload status path is `result.query_job.job_status`.
+   - Diagnostic success is `result.query_job.job_status == "JOB_STATUS_DONE"` and empty `result.query_job.job_error`.
+   - Diagnostic failure is non-empty `result.query_job.job_error`; stop and report the error.
+10. Validate map output with snapshot after successful job completion and row fetch:
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
@@ -526,6 +518,10 @@ Do not run both flows for the same task unless user explicitly asks.
 * Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.
 * If create-report or create-dataset returns 404 it likely issue with token or auth. Ask user to re-run `dekart init` and confirm before retrying.
 * Snapshot validation is mandatory, but diagnose in order: first verify map config bindings, columns, and view; if those are correct and the PNG is blank or missing WebGL features, treat it as a snapshot renderer issue and verify the interactive report.
+* anti-loop rules for Dekart query/fetch commands:
+   - Never pipe long-running `dekart` commands through `| tail` or `| head`; those buffers can hide progress until EOF and look idle.
+   - Do not run Dekart query/fetch commands as background tasks watched by Monitor on a tailed file.
+   - Prefer `dekart fetch-job --wait`, which blocks and returns directly.
 * If remote snapshot fails with timeout (for example HTTP 504 / `snapshot timeout`), ask the user to enable local snapshots:
   `dekart snapshot-local install`
   Then retry snapshot with `dekart snapshot --report-id <report_id>`.
@@ -539,6 +535,7 @@ Do not run both flows for the same task unless user explicitly asks.
 * Never reconstruct map URLs from config-derived host strings.
 * Never call create-report multiple times just to get URL fields.
 * Never call Dekart HTTP, config files, or anything outside the documented dekart CLI.
+
 
 
 ## Styling the Map
