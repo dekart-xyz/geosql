@@ -127,6 +127,16 @@ Then run the equivalent bypass-permissions flag supported by your version.
 
 Use bypass mode only in trusted local repositories.
 
+Run one Dekart eval case non-interactively from the isolated shell:
+
+```bash
+python3 evals/run.py \
+  --case london-boroughs-dekart-wherobots \
+  --model opus \
+  --thinking-level medium \
+  --allowed-tools "Bash(dekart:*) Bash(python3:*) Bash(mkdir:*) Bash(cat:*) Bash(test:*) Bash(rg:*)"
+```
+
 ## 8) Run GitHub Copilot in isolated Dekart shell (no `bq`/`snow`)
 
 From repo root:

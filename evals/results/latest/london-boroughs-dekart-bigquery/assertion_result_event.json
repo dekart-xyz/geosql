@@ -3,40 +3,40 @@
   "subtype": "success",
   "is_error": false,
   "api_error_status": null,
-  "duration_ms": 30486,
-  "duration_api_ms": 18310,
-  "ttft_ms": 3026,
-  "ttft_stream_ms": 2022,
-  "time_to_request_ms": 50,
-  "num_turns": 2,
-  "result": "```json\n{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent provided result map URL.\",\n      \"passed\": true,\n      \"evidence\": \"Final answer included the Dekart report_url returned by `dekart query --json`.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"https://cloud.dekart.xyz/reports/d0b9952b-2f9f-4f34-aa28-879fadf148c0\"\n    },\n    {\n      \"assertion\": \"Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).\",\n      \"passed\": true,\n      \"evidence\": \"SUM(ST_AREA(geometry))/1e6 over the 33 returned boroughs = 1577.4 km2, within 1546-1609 (+/-2% of 1577).\",\n      \"commands_run\": [\"dekart query --connection-id d23434e7... --sql-file /tmp/q_area.sql --wait --print\"],\n      \"result_snippet\": \"total_km2,n\\n1577.4,33\"\n    },\n    {\n      \"assertion\": \"Agent verified map visually to confirm that all boroughs are present and the geometries look correct.\",\n      \"passed\": true,\n      \"evidence\": \"Snapshot saved to /tmp/london-snapshot.png and read as an image; render showed the recognizable Greater London outline assembled from all 33 boroughs with the Thames gap visible and correct choropleth shading.\",\n      \"commands_run\": [\"dekart snapshot --report-id d0b9952b-2f9f-4f34-aa28-879fadf148c0 --out /tmp/london-snapshot.png\", \"Read /tmp/london-snapshot.png\"],\n      \"result_snippet\": \"Snapshot saved: /tmp/london-snapshot.png; image shows 33 contiguous boroughs forming Greater London\"\n    }\n  ],\n  \"summary\": {\"passed\": 3, \"failed\": 0, \"total\": 3, \"pass_rate\": 1.0}\n}\n```",
+  "duration_ms": 48509,
+  "duration_api_ms": 36549,
+  "ttft_ms": 6817,
+  "ttft_stream_ms": 6371,
+  "time_to_request_ms": 30,
+  "num_turns": 3,
+  "result": "{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent provided result map URL.\",\n      \"passed\": true,\n      \"evidence\": \"Final answer included the Dekart report URL for the rendered map.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"https://cloud.dekart.xyz/reports/27265ab6-88fe-495c-b01d-e49cf055d0a5\"\n    },\n    {\n      \"assertion\": \"Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).\",\n      \"passed\": true,\n      \"evidence\": \"SUM(ST_AREA(geometry)) over the 33 boroughs = 1577.37 km2, which is within +/-2% of 1,577 km2 (0.0% deviation). Row count also confirmed at 33.\",\n      \"commands_run\": [\"dekart query --sql-file /tmp/geosql/assert_area.sql (SUM(ST_AREA(geometry))/1e6 over 33 London boroughs)\"],\n      \"result_snippet\": \"n_boroughs=33  total_km2=1577.3684997335854\"\n    },\n    {\n      \"assertion\": \"Agent verified map visually to confirm that all boroughs are present and the geometries look correct.\",\n      \"passed\": true,\n      \"evidence\": \"Rendered local snapshot PNG and inspected it: the familiar Greater London outline with the Thames visible, all 33 borough polygons filled with the choropleth, hairline white borders, no gaps or stray geometries. Count of 33 corroborates completeness.\",\n      \"commands_run\": [\"dekart snapshot --report-id 27265ab6-88fe-495c-b01d-e49cf055d0a5 --out /tmp/geosql/snapshot.png\", \"Read /tmp/geosql/snapshot.png\"],\n      \"result_snippet\": \"Snapshot saved: /tmp/geosql/snapshot.png; image shows complete London borough mosaic with Thames, area-encoded choropleth\"\n    }\n  ],\n  \"summary\": {\"passed\": 3, \"failed\": 0, \"total\": 3, \"pass_rate\": 1.0}\n}",
   "stop_reason": "end_turn",
-  "session_id": "0f0de4bf-1458-4a36-84e1-cd2dd169df4d",
-  "total_cost_usd": 0.097637,
+  "session_id": "f8b6cf4f-5053-45d3-9814-22949b3752cb",
+  "total_cost_usd": 0.4949635,
   "usage": {
-    "input_tokens": 3,
-    "cache_creation_input_tokens": 1884,
-    "cache_read_input_tokens": 90764,
-    "output_tokens": 1336,
+    "input_tokens": 134,
+    "cache_creation_input_tokens": 40179,
+    "cache_read_input_tokens": 102457,
+    "output_tokens": 1651,
     "server_tool_use": {
       "web_search_requests": 0,
       "web_fetch_requests": 0
     },
     "service_tier": "standard",
     "cache_creation": {
-      "ephemeral_1h_input_tokens": 1884,
+      "ephemeral_1h_input_tokens": 40179,
       "ephemeral_5m_input_tokens": 0
     },
     "inference_geo": "not_available",
     "iterations": [
       {
         "input_tokens": 2,
-        "output_tokens": 731,
-        "cache_read_input_tokens": 46013,
-        "cache_creation_input_tokens": 622,
+        "output_tokens": 721,
+        "cache_read_input_tokens": 47773,
+        "cache_creation_input_tokens": 297,
         "cache_creation": {
           "ephemeral_5m_input_tokens": 0,
-          "ephemeral_1h_input_tokens": 622
+          "ephemeral_1h_input_tokens": 297
         },
         "type": "message"
       }
@@ -45,12 +45,12 @@
   },
   "modelUsage": {
     "claude-opus-4-8": {
-      "inputTokens": 3,
-      "outputTokens": 1336,
-      "cacheReadInputTokens": 90764,
-      "cacheCreationInputTokens": 1884,
+      "inputTokens": 134,
+      "outputTokens": 1651,
+      "cacheReadInputTokens": 102457,
+      "cacheCreationInputTokens": 40179,
       "webSearchRequests": 0,
-      "costUSD": 0.097637,
+      "costUSD": 0.4949635,
       "contextWindow": 1000000,
       "maxOutputTokens": 64000
     }
@@ -58,5 +58,5 @@
   "permission_denials": [],
   "terminal_reason": "completed",
   "fast_mode_state": "off",
-  "uuid": "f21c13f0-b249-463b-983c-a06a27a7a6d4"
+  "uuid": "097deace-dd7c-4d69-bf48-64dc42e01aaa"
 }

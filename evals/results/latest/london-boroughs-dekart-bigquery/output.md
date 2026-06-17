@@ -1,28 +1,23 @@
-The map renders cleanly. Done.
+The map renders correctly — all 33 Greater London boroughs as a clean choropleth in the familiar London outline, with the Thames visible cutting through. Color encodes borough area: dark purple = small inner boroughs (City of London, Kensington & Chelsea, Islington), yellow = large outer boroughs (Bromley, Havering, Hillingdon).
 
-## London Boroughs — BigQuery + Dekart
+## London Boroughs — done
 
-**Map:** https://cloud.dekart.xyz/reports/d0b9952b-2f9f-4f34-aa28-879fadf148c0
+**Map:** https://cloud.dekart.xyz/reports/27265ab6-88fe-495c-b01d-e49cf055d0a5
 
-The snapshot shows the recognizable Greater London outline assembled from all **33 boroughs**, the Thames gap visible through the center, and a clean sequential color ramp (dark = small, yellow = large) by borough area.
+**Source:** `bigquery-public-data.overture_maps.division_area` (subtype `county`, country `GB`), constrained to the 33 Greater London boroughs.
 
-### How it was built
-- **Source:** `bigquery-public-data.overture_maps.division_area`
-- **Boroughs are stored as** `subtype='county'`, `class='land'`, `admin_level=2` with official names (Westminster, Kensington and Chelsea, etc.). The `macrohood`/`neighborhood` "London Borough of…" entries are informal duplicates — ignored.
-- **Filter:** bbox scan gate over Greater London + an explicit list of the 33 borough names (the bbox alone also catches Surrey, Kent, Essex, Herts, Bucks, Slough, Thurrock — excluded by name). No `ST_INTERSECTS` clipping needed since the boroughs *are* the selected areas.
+**Approach**
+- Discovered that London boroughs are stored as `subtype = 'county'` in Overture (not a "region"). The Greater London bbox also catches 7 neighbouring counties (Essex, Kent, Surrey, etc.), so I filtered to the exact 33-borough name list.
+- Scan gate: hardcoded London bbox (`-0.51..0.33`, `51.28..51.69`) for partition pruning.
 
-### Validation
-| Check | Result |
-|---|---|
-| Borough count | 33 (32 + City of London) ✓ |
-| Total area | 1,577 km² (Greater London ≈ 1,572 km²) ✓ |
-| Smallest | City of London, 2.5 km² ✓ |
-| Largest | Bromley, 149.7 km² ✓ |
-| Query cost | ~21 KB scanned |
+**Validation (all in SQL)**
+- Count: **33 boroughs** (32 + City of London) ✓
+- Total area: **1,577 km²** — matches Greater London's ~1,572 km² ✓
+- Range: City of London smallest at **2.5 km²**, largest **149.7 km²** ✓
+- Snapshot inspected: correct shape, Thames visible, hairline borders, sequential Sunset palette.
 
-### Styling
-GeoJSON choropleth, color by `area_km2` (quantize, Sunset palette), 0.5px white hairline borders, light basemap, view locked to zoom 9.4 on central London. Tooltips show borough name + area.
+**Styling:** GeoJSON choropleth, color = `area_km2` (quantile, Sunset sequential), muted basemap, 0.5px white borders, view locked to city scale.
 
-**IDs:** report `d0b9952b-2f9f-4f34-aa28-879fadf148c0` · dataset `5dc829e6-88b7-4bd8-bb01-c5b4c9c10363` · query `26460e3a-931a-47d7-96ed-328cd43e5d33`
+IDs: report `27265ab6-88fe-495c-b01d-e49cf055d0a5`, dataset `27b1ad51-005f-4b24-9d1e-b4828f600931`.
 
-Want me to add per-borough population or feature counts (e.g. POIs, buildings) for a more analytical encoding?
+Want me to add population or population-density data for a more meaningful choropleth, or extrude boroughs in 3D by a second metric?

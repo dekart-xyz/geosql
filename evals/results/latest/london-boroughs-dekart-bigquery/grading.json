@@ -3,28 +3,28 @@
     {
       "assertion": "Agent provided result map URL.",
       "passed": true,
-      "evidence": "Final answer included the Dekart report_url returned by `dekart query --json`.",
+      "evidence": "Final answer included the Dekart report URL for the rendered map.",
       "commands_run": [],
-      "result_snippet": "https://cloud.dekart.xyz/reports/d0b9952b-2f9f-4f34-aa28-879fadf148c0"
+      "result_snippet": "https://cloud.dekart.xyz/reports/27265ab6-88fe-495c-b01d-e49cf055d0a5"
     },
     {
       "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
       "passed": true,
-      "evidence": "SUM(ST_AREA(geometry))/1e6 over the 33 returned boroughs = 1577.4 km2, within 1546-1609 (+/-2% of 1577).",
+      "evidence": "SUM(ST_AREA(geometry)) over the 33 boroughs = 1577.37 km2, which is within +/-2% of 1,577 km2 (0.0% deviation). Row count also confirmed at 33.",
       "commands_run": [
-        "dekart query --connection-id d23434e7... --sql-file /tmp/q_area.sql --wait --print"
+        "dekart query --sql-file /tmp/geosql/assert_area.sql (SUM(ST_AREA(geometry))/1e6 over 33 London boroughs)"
       ],
-      "result_snippet": "total_km2,n\n1577.4,33"
+      "result_snippet": "n_boroughs=33  total_km2=1577.3684997335854"
     },
     {
       "assertion": "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
       "passed": true,
-      "evidence": "Snapshot saved to /tmp/london-snapshot.png and read as an image; render showed the recognizable Greater London outline assembled from all 33 boroughs with the Thames gap visible and correct choropleth shading.",
+      "evidence": "Rendered local snapshot PNG and inspected it: the familiar Greater London outline with the Thames visible, all 33 borough polygons filled with the choropleth, hairline white borders, no gaps or stray geometries. Count of 33 corroborates completeness.",
       "commands_run": [
-        "dekart snapshot --report-id d0b9952b-2f9f-4f34-aa28-879fadf148c0 --out /tmp/london-snapshot.png",
-        "Read /tmp/london-snapshot.png"
+        "dekart snapshot --report-id 27265ab6-88fe-495c-b01d-e49cf055d0a5 --out /tmp/geosql/snapshot.png",
+        "Read /tmp/geosql/snapshot.png"
       ],
-      "result_snippet": "Snapshot saved: /tmp/london-snapshot.png; image shows 33 contiguous boroughs forming Greater London"
+      "result_snippet": "Snapshot saved: /tmp/geosql/snapshot.png; image shows complete London borough mosaic with Thames, area-encoded choropleth"
     }
   ],
   "summary": {

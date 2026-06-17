@@ -1,7 +1,7 @@
 {
   "skill_name": "geosql",
   "run_config": {
-    "model": "claude-opus-4-8",
+    "model": "opus",
     "thinking_level": "medium"
   },
   "cases": [
@@ -45,7 +45,7 @@
     "passed_assertions": 14,
     "total_assertions": 14,
     "pass_rate": 1.0,
-    "avg_tokens_per_turn": 9161.5,
-    "avg_duration_ms_per_turn": 158925.5
+    "avg_tokens_per_turn": 8867.0,
+    "avg_duration_ms_per_turn": 174760.0
   }
 }

@@ -90,6 +90,8 @@ AND bbox.xmax <= <area_xmax>   -- WRONG
 
 Use the dialect reference for draft query examples and engine-specific syntax. For map output, select a geometry column aliased exactly as lowercase `geometry`.
 
+**CRITICAL: cast 64-bit integer fields to 32-bit int or double.** Any numeric column bound to a Kepler visual channel (color, stroke width, size, height) must NOT be a 64-bit integer.
+
 ### Step 4: Validate (mandatory)
 
 Do NOT present the query to the user without validating it first.
@@ -150,17 +152,17 @@ The CLI stores map artifacts in this hierarchy:
 - `dataset`: one data layer slot inside a report.
 - `file`: uploaded data artifact attached to a dataset.
 - `query`: SQL attached to a dataset/connection and executed asynchronously.
-- `job`: execution instance for a query (`dekart query` handles run -> wait -> fetch).
+- `job`: execution instance for a query (`dekart query` handles update -> run -> wait -> fetch).
 
 Important IDs:
 - `create_dataset` returns the dataset id at `result.id`.
-- `dekart query --json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and saved file metadata.
+- `dekart query --json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and `result_file`.
 - In Kepler `map_config`, every layer `config.dataId`, filter `dataId`, and tooltip key must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label.
 
 For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Prefer `--sql-file` with `dekart query`.
 
 Control plane depends on execution mode:
-- Query mode (connectors available): use `dekart query` to create `report` -> create `dataset` -> create `query` -> run -> wait -> fetch rows.
+- Query mode (connectors available): create one `report` and one `dataset`, then reuse them with `dekart query` for update -> run -> wait -> fetch rows.
 - File-upload mode (no connectors): create `report` -> create `dataset` -> create `file`, then upload CSV and complete multipart flow.
 
 ### Mode selection (required)
@@ -169,7 +171,7 @@ Choose exactly one flow after gate/confirmation:
 
 1. Query mode:
    - Use when `list_connections` shows at least one usable warehouse connector.
-   - Execution path: `dekart query --connection-id <id> --sql-file <path> --out <result.parquet> --wait --json`.
+   - Execution path: create one report/dataset with `dekart call`, then run `dekart query --report-id <report_id> --dataset-id <dataset_id> --connection-id <id> --sql-file <path> --out-dir <dir> --wait --json`.
 2. File-upload mode:
    - Use when no usable connector is available.
    - Execution path: `report -> dataset -> file -> upload-file`.
@@ -216,21 +218,27 @@ Do not run both flows for the same task unless user explicitly asks.
 3. Once gated-in, confirm available connections:
    - `dekart call --name list_connections --args '{}' --json`
    - pick a usable connection for the target warehouse/entity.
-4. Save SQL to a file. SQL must include geospatial output aliased exactly as lowercase `"geometry"`.
-5. Run the query, wait for the job, fetch result rows, and return IDs/metadata in one command:
-   `dekart query --connection-id <id> --sql-file <path> --out <result.parquet> --wait --json`
-   - Use `--print` instead of `--json` when you only need to inspect rows.
-   - Read the saved parquet with duckdb when you need rows after a `--json` run.
-   - `--json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and saved file metadata.
-   - Treat a zero exit plus a non-empty output parquet as successful fetch.
+4. Create exactly one report and one dataset for the session:
+   - `dekart call --name create_report --args '{}' --json`
+   - capture `report_id` from `result.report.id`, `result.report_id`, or `result.id`; capture `report_url` when present.
+   - `dekart call --name create_dataset --args '{"report_id":"<report_id>"}' --json`
+   - capture `dataset_id` from `result.id`, `result.dataset_id`, or `result.dataset.id`.
+5. Save SQL to a file. SQL must include geospatial output aliased exactly as lowercase `"geometry"` for the final map query.
+6. Run every discovery, validation, preview, and final map query against the same report/dataset:
+   `dekart query --report-id <report_id> --dataset-id <dataset_id> --connection-id <id> --sql-file <path> --out-dir <dir> --wait --json`
+   - Read `result_file` from the JSON response; do not guess `.csv` or `.parquet`.
+   - Preview rows with `dekart preview <result_file> --limit 20`; inspect columns/types with `dekart preview <result_file> --schema`.
+   - `--json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and `result_file`.
+   - Treat a zero exit plus a non-empty `result_file` as successful fetch.
    - If the command reports `empty result (metadata/SHOW statement?)`, rewrite discovery SQL to return rows.
    - Do not hand-roll a poller or use temporary scripts for run/wait/fetch.
    - If you need diagnostic job status from `dekart call`, the canonical tool payload status path is `result.query_job.job_status`.
-6. Validate map output with snapshot after successful job completion and row fetch:
+   - Create a new dataset only for an additional map layer. Create a new report only when the user explicitly asks for more than one map/report.
+7. Validate map output with snapshot after successful job completion and row fetch:
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
-7. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
+8. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
    - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and `report_url`.
 
 ### Failure handling
