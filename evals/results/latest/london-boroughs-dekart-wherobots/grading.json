@@ -1,0 +1,38 @@
+{
+  "assertion_results": [
+    {
+      "assertion": "Agent provided result map URL.",
+      "passed": true,
+      "evidence": "Final answer included the Dekart report URL returned by `dekart query --json` (report_url field).",
+      "commands_run": [
+        "dekart query --connection-id fcc0f9ab-eff6-45c0-a34c-915a07383854 --sql-file /tmp/wb_map.sql --out /tmp/wb_map.parquet --wait --json"
+      ],
+      "result_snippet": "https://cloud.dekart.xyz/reports/b2671c9c-831f-4e39-9232-ccc6bc7e6d86"
+    },
+    {
+      "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
+      "passed": true,
+      "evidence": "Re-ran SUM(ST_AreaSpheroid(geometry))/1e6 over the 33 boroughs = 1583.27 km\u00b2. Target 1577 km\u00b2 +/-2% = [1545.46, 1608.54]; 1583.27 falls within range (+0.4% of target).",
+      "commands_run": [
+        "dekart query --connection-id fcc0f9ab-eff6-45c0-a34c-915a07383854 --sql-file /tmp/wb_area_check.sql --out /tmp/wb_area_check.parquet --wait --print"
+      ],
+      "result_snippet": "n_boroughs=33  total_km2=1583.27"
+    },
+    {
+      "assertion": "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
+      "passed": true,
+      "evidence": "Rendered a snapshot PNG and inspected it: showed the classic Greater London silhouette with 33 contiguous borough polygons, no gaps/overlaps, Thames corridor visible, choropleth coloring small inner boroughs dark and large outer boroughs light. Count (33) matches the SQL count.",
+      "commands_run": [
+        "dekart snapshot --report-id b2671c9c-831f-4e39-9232-ccc6bc7e6d86 --out /tmp/london-boroughs-snapshot.png",
+        "Read /tmp/london-boroughs-snapshot.png"
+      ],
+      "result_snippet": "Snapshot saved: /tmp/london-boroughs-snapshot.png; image shows full Greater London with all boroughs colored, Thames visible"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  }
+}

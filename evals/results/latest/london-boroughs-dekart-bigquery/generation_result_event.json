@@ -1,0 +1,72 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "api_error_status": null,
+  "duration_ms": 287365,
+  "duration_api_ms": 180490,
+  "ttft_ms": 2570,
+  "ttft_stream_ms": 2089,
+  "time_to_request_ms": 28,
+  "num_turns": 21,
+  "result": "The map renders cleanly. Done.\n\n## London Boroughs \u2014 BigQuery + Dekart\n\n**Map:** https://cloud.dekart.xyz/reports/d0b9952b-2f9f-4f34-aa28-879fadf148c0\n\nThe snapshot shows the recognizable Greater London outline assembled from all **33 boroughs**, the Thames gap visible through the center, and a clean sequential color ramp (dark = small, yellow = large) by borough area.\n\n### How it was built\n- **Source:** `bigquery-public-data.overture_maps.division_area`\n- **Boroughs are stored as** `subtype='county'`, `class='land'`, `admin_level=2` with official names (Westminster, Kensington and Chelsea, etc.). The `macrohood`/`neighborhood` \"London Borough of\u2026\" entries are informal duplicates \u2014 ignored.\n- **Filter:** bbox scan gate over Greater London + an explicit list of the 33 borough names (the bbox alone also catches Surrey, Kent, Essex, Herts, Bucks, Slough, Thurrock \u2014 excluded by name). No `ST_INTERSECTS` clipping needed since the boroughs *are* the selected areas.\n\n### Validation\n| Check | Result |\n|---|---|\n| Borough count | 33 (32 + City of London) \u2713 |\n| Total area | 1,577 km\u00b2 (Greater London \u2248 1,572 km\u00b2) \u2713 |\n| Smallest | City of London, 2.5 km\u00b2 \u2713 |\n| Largest | Bromley, 149.7 km\u00b2 \u2713 |\n| Query cost | ~21 KB scanned |\n\n### Styling\nGeoJSON choropleth, color by `area_km2` (quantize, Sunset palette), 0.5px white hairline borders, light basemap, view locked to zoom 9.4 on central London. Tooltips show borough name + area.\n\n**IDs:** report `d0b9952b-2f9f-4f34-aa28-879fadf148c0` \u00b7 dataset `5dc829e6-88b7-4bd8-bb01-c5b4c9c10363` \u00b7 query `26460e3a-931a-47d7-96ed-328cd43e5d33`\n\nWant me to add per-borough population or feature counts (e.g. POIs, buildings) for a more analytical encoding?",
+  "stop_reason": "end_turn",
+  "session_id": "0f0de4bf-1458-4a36-84e1-cd2dd169df4d",
+  "total_cost_usd": 1.0120285,
+  "usage": {
+    "input_tokens": 4599,
+    "cache_creation_input_tokens": 36860,
+    "cache_read_input_tokens": 620431,
+    "output_tokens": 12385,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 36860,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 912,
+        "cache_read_input_tokens": 44537,
+        "cache_creation_input_tokens": 214,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 214
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 513,
+      "outputTokens": 16,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.000593,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    },
+    "claude-opus-4-8": {
+      "inputTokens": 4599,
+      "outputTokens": 12385,
+      "cacheReadInputTokens": 620431,
+      "cacheCreationInputTokens": 36860,
+      "webSearchRequests": 0,
+      "costUSD": 1.0114355000000002,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "uuid": "71d83899-8f80-44a5-8d89-b4077af33707"
+}

@@ -27,6 +27,10 @@ class CliInstallTest(unittest.TestCase):
             skill_dir = home / ".copilot" / "skills" / "geosql"
             self.assertTrue((skill_dir / "SKILL.md").exists())
             self.assertTrue((skill_dir / "references" / "map-styling.md").exists())
+            self.assertTrue((skill_dir / "references" / "bigquery.md").exists())
+            self.assertTrue((skill_dir / "references" / "snowflake.md").exists())
+            self.assertTrue((skill_dir / "references" / "postgres.md").exists())
+            self.assertTrue((skill_dir / "references" / "wherobots.md").exists())
 
     def test_handle_install_target_accepts_copilot(self):
         with mock.patch("geosql.cli.install_copilot_skill", return_value=0) as install:

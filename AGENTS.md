@@ -20,3 +20,7 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 - Keep one canonical source per artifact: no duplicate `SKILL.md` or script logic copies.
 - Put deterministic execution logic in `scripts/` and reference those scripts explicitly from `SKILL.md`.
 - Keep instructions focused and scannable; move deep details to supporting files only when needed.
+
+## Skill Packaging Rule
+
+This skill ships NO agent-run scripts. Any reusable helper goes into the `dekart` CLI. Keep `skills/geosql/scripts/` empty.

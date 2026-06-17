@@ -34,6 +34,15 @@ The user has 3 options in `dekart init`:
 
 Help the user pick the best installation option for their needs.
 
+## Dialect References
+
+Use the matching reference for per-database SQL, CLI examples, and engine-specific caveats:
+
+- BigQuery: `references/bigquery.md`
+- Snowflake: `references/snowflake.md`
+- Postgres / PostGIS: `references/postgres.md`
+- Wherobots / Sedona: `references/wherobots.md`
+
 ## Required Workflow
 
 Follow these steps in order. Do NOT write a final query until steps 1-3 are complete.
@@ -45,143 +54,17 @@ Always verify exact object names and column types from the warehouse metadata; d
 
 When multiple tables match the entity, sample each candidate for attribute density and prefer the richer source. Richer attributes enable stronger visual encoding in Step 5 and a stronger map validation case.
 
-BigQuery:
-
-```sql
-SELECT table_name
-FROM `bigquery-public-data.overture_maps.INFORMATION_SCHEMA.TABLES`
-ORDER BY table_name;
-```
-
-```sql
-SELECT column_name, data_type
-FROM `bigquery-public-data.overture_maps.INFORMATION_SCHEMA.COLUMNS`
-WHERE table_name = '<target_table>'
-ORDER BY ordinal_position;
-```
-
-Snowflake:
-
-```sql
-SHOW DATABASES LIKE 'OVERTURE_MAPS__%';
-```
-
-If this returns no rows, stop and ask the user to install Overture Maps shares from Snowflake Marketplace before continuing.
-
-```sql
-SELECT table_catalog, table_schema, table_name
-FROM OVERTURE_MAPS__TRANSPORTATION.INFORMATION_SCHEMA.TABLES
-WHERE table_schema = 'CARTO'
-ORDER BY table_name;
-```
-
-```sql
-SELECT column_name, data_type
-FROM OVERTURE_MAPS__TRANSPORTATION.INFORMATION_SCHEMA.COLUMNS
-WHERE table_schema = 'CARTO'
-  AND table_name = '<TARGET_TABLE>'
-ORDER BY ordinal_position;
-```
-
-Postgres / PostGIS:
-
-Postgres has no Overture public dataset. Discover the user's own spatial tables; do not assume table or column names.
-
-```sql
--- List tables that have a geometry/geography column
-SELECT f_table_schema, f_table_name, f_geometry_column, type, srid
-FROM geometry_columns
-ORDER BY f_table_schema, f_table_name;
-```
-
-```sql
--- Columns and types for a target table
-SELECT column_name, data_type, udt_name
-FROM information_schema.columns
-WHERE table_schema = '<schema>'
-  AND table_name = '<target_table>'
-ORDER BY ordinal_position;
-```
-
-Confirm the geometry column's SRID (expect `4326` for lon/lat). If SRID differs, plan to `ST_Transform(geom, 4326)` for map output. PostGIS must be enabled (`CREATE EXTENSION postgis;`); if `geometry_columns` errors, stop and ask the user to enable PostGIS.
-
-Wherobots (Sedona / Spatial SQL):
-
-Wherobots is dekart-only here (no local CLI fallback). Discover catalogs/tables via dekart's connection, and confirm the geometry column and that it is in EPSG:4326 before drafting. Sedona uses `ST_*` functions similar to PostGIS.
-
-Run Wherobots discovery SQL through Dekart query mode. Use `dekart call --name list_connections --args '{}' --json` first and select a `CONNECTION_TYPE_WHEROBOTS` connection id, then create `report -> dataset -> query`, run the SQL with `update_query` / `run_query`, and fetch rows with `dekart fetch-job --wait`.
-
-Avoid `SHOW` / `DESCRIBE`. Prefer bounded row previews and metadata queries that return rows, for example:
-
-```sql
-SELECT * FROM wherobots_open_data.overture_maps_foundation.divisions_division_area LIMIT 5;
-```
-
-
-Overture tables in Wherobots use `<theme>_<type>` names, for example `divisions_division_area`, `transportation_segment`, `places_place`, and `buildings_building`. For map output, select a geometry column aliased exactly as lowercase `geometry`.
+Use the dialect reference for discovery SQL:
+- BigQuery: `references/bigquery.md`
+- Snowflake: `references/snowflake.md`
+- Postgres / PostGIS: `references/postgres.md`
+- Wherobots / Sedona: `references/wherobots.md`
 
 ### Step 2: Resolve the target area
 
 When the user asks about a named area (city, district, country), query `division_area` first to discover how it is actually stored (subtype, class, naming conventions). Do not assume from general knowledge.
 
-BigQuery:
-
-```sql
-SELECT subtype, class, names.primary, bbox.xmin, bbox.xmax, bbox.ymin, bbox.ymax
-FROM `bigquery-public-data.overture_maps.division_area`
-WHERE country = '<iso2>'
-  AND LOWER(names.primary) LIKE '%<area_name>%'
-LIMIT 20;
-```
-
-Snowflake:
-
-```sql
-SELECT subtype,
-       class,
-       names:primary::string AS name_primary,
-       bbox:xmin::float AS xmin,
-       bbox:xmax::float AS xmax,
-       bbox:ymin::float AS ymin,
-       bbox:ymax::float AS ymax
-FROM OVERTURE_MAPS__DIVISIONS.CARTO.DIVISION_AREA
-WHERE country = '<ISO2>'
-  AND LOWER(names:primary::string) LIKE '%<area_name>%'
-LIMIT 20;
-```
-
-Postgres:
-
-There is no Overture `division_area` to resolve against. Use whatever boundary source exists in the user's data (an admin-boundary table, a user-supplied polygon, or an explicit bbox the user provides). If no boundary geometry exists, fall back to an explicit lon/lat bbox supplied by the user. Compute the bbox of a chosen boundary row with:
-
-```sql
-SELECT ST_XMin(geom), ST_XMax(geom), ST_YMin(geom), ST_YMax(geom)
-FROM <boundary_table>
-WHERE <name_column> ILIKE '%<area_name>%';
-```
-
-Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
-
-Wherobots (Sedona / Spatial SQL):
-
-Use Wherobots Overture `divisions_division_area` when it is available. Run this through Dekart query mode:
-
-```sql
-SELECT
-  subtype,
-  class,
-  names.primary AS name_primary,
-  bbox.xmin AS xmin,
-  bbox.xmax AS xmax,
-  bbox.ymin AS ymin,
-  bbox.ymax AS ymax
-FROM wherobots_open_data.overture_maps_foundation.divisions_division_area
-WHERE country = '<ISO2>'
-  AND LOWER(names.primary) LIKE '%<area_name>%'
-LIMIT 20;
-```
-
-If no matching boundary exists in Wherobots Overture, use another boundary table visible through the same Wherobots connection, a user-supplied polygon, or an explicit lon/lat bbox supplied by the user. Do not switch to a direct Wherobots notebook or SDK path.
+Use the dialect reference for target-area SQL and fallbacks. Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
 
 ### Step 3: Draft the query
 
@@ -205,113 +88,7 @@ AND bbox.xmin >= <area_xmin>   -- WRONG
 AND bbox.xmax <= <area_xmax>   -- WRONG
 ```
 
-BigQuery:
-
-```sql
-WITH area AS (
-  SELECT geometry
-  FROM `bigquery-public-data.overture_maps.division_area`
-  WHERE country = 'DE'
-    AND region = 'DE-BE'
-    AND subtype = 'region'
-    AND class = 'land'
-  LIMIT 1
-)
-SELECT s.id, s.geometry
-FROM `bigquery-public-data.overture_maps.segment` s
-CROSS JOIN area a
-WHERE s.subtype = 'rail'
-  -- overlap pattern: xmax >= area_xmin, xmin <= area_xmax
-  AND s.bbox.xmax >= 13.08834457397461
-  AND s.bbox.xmin <= 13.761162757873535
-  AND s.bbox.ymax >= 52.33823776245117
-  AND s.bbox.ymin <= 52.67551040649414
-  AND ST_INTERSECTS(s.geometry, a.geometry)
-LIMIT 1000;
-```
-
-Snowflake:
-
-```sql
-WITH area AS (
-  SELECT geometry
-  FROM OVERTURE_MAPS__DIVISIONS.CARTO.DIVISION_AREA
-  WHERE country = 'DE'
-    AND region = 'DE-BE'
-    AND subtype = 'region'
-    AND class = 'land'
-  LIMIT 1
-)
-SELECT s.id, s.geometry
-FROM OVERTURE_MAPS__TRANSPORTATION.CARTO.SEGMENT s
-CROSS JOIN area a
-WHERE s.subtype = 'rail'
-  AND s.bbox:xmax::float >= 13.08834457397461
-  AND s.bbox:xmin::float <= 13.761162757873535
-  AND s.bbox:ymax::float >= 52.33823776245117
-  AND s.bbox:ymin::float <= 52.67551040649414
-  AND ST_INTERSECTS(s.geometry, a.geometry)
-LIMIT 1000;
-```
-
-Postgres / PostGIS:
-
-PostGIS has no `bbox` struct column; use the `&&` bounding-box operator (index-accelerated) as the scan gate, then `ST_Intersects` for correctness. Build the area envelope from a boundary row or an explicit bbox.
-
-```sql
-WITH area AS (
-  SELECT geom
-  FROM admin_boundaries
-  WHERE name ILIKE '%Berlin%'
-  LIMIT 1
-)
-SELECT s.id, s.geom
-FROM segments s
-CROSS JOIN area a
-WHERE s.subtype = 'rail'
-  -- index-accelerated bbox overlap gate
-  AND s.geom && a.geom
-  -- exact geometry test
-  AND ST_Intersects(s.geom, a.geom)
-LIMIT 1000;
-```
-
-If you only have an explicit bbox (no boundary geometry), gate with `ST_MakeEnvelope`:
-
-```sql
-AND s.geom && ST_MakeEnvelope(13.0883, 52.3382, 13.7612, 52.6755, 4326)
-```
-
-Ensure both geometries share SRID 4326; wrap with `ST_Transform(..., 4326)` if not. Sedona/Wherobots uses the same `ST_Intersects` pattern; prefer an explicit envelope predicate instead of the PostGIS-only `&&` operator.
-
-Wherobots (Sedona / Spatial SQL):
-
-Wherobots Overture examples must run through Dekart query mode. Sedona does not support the PostGIS `&&` operator, so use the explicit bbox overlap pattern plus `ST_Intersects`. Keep the geospatial output column aliased exactly as lowercase `geometry`.
-
-```sql
-WITH area AS (
-  SELECT geometry
-  FROM wherobots_open_data.overture_maps_foundation.divisions_division_area
-  WHERE country = 'DE'
-    AND region = 'DE-BE'
-    AND subtype = 'region'
-    AND class = 'land'
-  LIMIT 1
-)
-SELECT
-  s.id,
-  s.subtype,
-  s.geometry AS geometry
-FROM wherobots_open_data.overture_maps_foundation.transportation_segment s
-CROSS JOIN area a
-WHERE s.subtype = 'rail'
-  AND s.bbox.xmax >= 13.08834457397461
-  AND s.bbox.xmin <= 13.761162757873535
-  AND s.bbox.ymax >= 52.33823776245117
-  AND s.bbox.ymin <= 52.67551040649414
-  AND ST_Intersects(s.geometry, a.geometry)
-LIMIT 1000;
-```
+Use the dialect reference for draft query examples and engine-specific syntax. For map output, select a geometry column aliased exactly as lowercase `geometry`.
 
 ### Step 4: Validate (mandatory)
 
@@ -352,46 +129,11 @@ If dekart CLI is missing, ask the user to `pip install dekart && dekart init` an
 
 ## Running Queries with `bq` CLI
 
-Use `bq` CLI directly. Always use standard SQL and enforce a budget:
-
-```bash
-# Dry run (check cost before executing)
-bq query --use_legacy_sql=false --dry_run --format=json --maximum_bytes_billed=10737418240 'SELECT ...'
-
-# Execute
-bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=50 'SELECT ...'
-```
-
-Guardrails:
-1. Always dry run before execution.
-2. Always include `--maximum_bytes_billed` (default 10 GiB = `10737418240`).
-3. If estimated bytes exceed budget: do not execute, provide a cheaper SQL variant.
-4. Prefer bounded SQL (bbox + date/limit + minimal columns).
+Use `bq` CLI directly. Always use standard SQL and enforce a budget. Full command examples and guardrails: `references/bigquery.md`.
 
 ## Running Queries with `snow` CLI
 
-Use `snow sql` directly for Snowflake data and keep queries bounded.
-
-```bash
-# First verify Overture shares are installed
-snow sql --query "SHOW DATABASES LIKE 'OVERTURE_MAPS__%';"
-
-# Validate quickly with row count first
-snow sql --query "WITH area AS (...) SELECT COUNT(*) FROM ...;"
-
-# Execute preview rows (table output)
-snow sql --query "WITH area AS (...) SELECT ... LIMIT 50;"
-
-# CSV output for piping (clean stdout)
-snow sql --format CSV --silent --query "WITH area AS (...) SELECT ... LIMIT 50000;"
-```
-
-Guardrails:
-1. Always validate with tight filters and `COUNT(*)` first.
-2. Always keep extraction bounded (`bbox` + `ST_INTERSECTS` + `LIMIT`) unless the user explicitly asks for full export.
-3. For map export, use CSV mode with `--format CSV --silent`.
-4. Ensure a default Snow CLI connection is configured before running commands.
-5. If `SHOW DATABASES LIKE 'OVERTURE_MAPS__%'` returns no rows, ask the user to install Overture Maps from Snowflake Marketplace, then retry.
+Use `snow sql` directly for Snowflake data and keep queries bounded. Full command examples and guardrails: `references/snowflake.md`.
 
 
 ## Map Flow with `dekart` CLI
@@ -399,7 +141,7 @@ Guardrails:
 Use this when dekart CLI is available.
 
 - If dekart has no warehouse connectors configured, use it to upload CSV results from `bq` or `snow` and create a map that way.
-- If dekart has warehouse connectors, use `dekart call` to run SQL and create map directly from query results.
+- If dekart has warehouse connectors, use `dekart query` to run SQL and create map directly from query results.
 
 ### Artifact model
 
@@ -408,30 +150,17 @@ The CLI stores map artifacts in this hierarchy:
 - `dataset`: one data layer slot inside a report.
 - `file`: uploaded data artifact attached to a dataset.
 - `query`: SQL attached to a dataset/connection and executed asynchronously.
-- `job`: execution instance for a query (run_query -> fetch-job --wait).
+- `job`: execution instance for a query (`dekart query` handles run -> wait -> fetch).
 
 Important IDs:
 - `create_dataset` returns the dataset id at `result.id`.
-- `create_query` returns `result.dataset_id` and `result.query_id`.
-- `run_query` returns the job id at `result.query_job.id`.
+- `dekart query --json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and saved file metadata.
 - In Kepler `map_config`, every layer `config.dataId`, filter `dataId`, and tooltip key must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label.
 
-Useful extraction examples:
-
-```bash
-REPORT_ID=$(dekart call --name create_report --args '{}' --extract result.report.id)
-DATASET_ID=$(dekart call --name create_dataset --args "{\"report_id\":\"$REPORT_ID\"}" --extract result.id)
-QUERY_ID=$(dekart call --name create_query --args "{\"dataset_id\":\"$DATASET_ID\",\"connection_id\":\"$CONNECTION_ID\"}" --extract result.query_id)
-dekart call --name update_query --args "{\"query_id\":\"$QUERY_ID\",\"query_text\":\"$SQL\"}"
-JOB_ID=$(dekart call --name run_query --args "{\"query_id\":\"$QUERY_ID\"}" --extract result.query_job.id)
-```
-
-`create_query` creates empty query metadata. Always call `update_query` with SQL before `run_query`.
-
-For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Prefer `--args-file`, or generate the JSON args with a JSON-aware tool such as `jq` or Python.
+For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Prefer `--sql-file` with `dekart query`.
 
 Control plane depends on execution mode:
-- Query mode (connectors available): create `report` -> create `dataset` -> create `query`, then run async query jobs.
+- Query mode (connectors available): use `dekart query` to create `report` -> create `dataset` -> create `query` -> run -> wait -> fetch rows.
 - File-upload mode (no connectors): create `report` -> create `dataset` -> create `file`, then upload CSV and complete multipart flow.
 
 ### Mode selection (required)
@@ -440,7 +169,7 @@ Choose exactly one flow after gate/confirmation:
 
 1. Query mode:
    - Use when `list_connections` shows at least one usable warehouse connector.
-   - Execution path: `report -> dataset -> query -> run_query -> fetch-job --wait -> read result rows`.
+   - Execution path: `dekart query --connection-id <id> --sql-file <path> --out <result.parquet> --wait --json`.
 2. File-upload mode:
    - Use when no usable connector is available.
    - Execution path: `report -> dataset -> file -> upload-file`.
@@ -482,36 +211,26 @@ Do not run both flows for the same task unless user explicitly asks.
 
 ### Query mode (connectors available)
 
-1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart fetch-job --help`.
+1. Use CLI help for current command behavior: `dekart --help`, `dekart query --help`, `dekart snapshot --help`.
 2. Gate: use this flow by default when Dekart is installed and `list_connections` shows at least one usable connector; do not use this flow when Dekart is missing or no usable connector exists.
 3. Once gated-in, confirm available connections:
    - `dekart call --name list_connections --args '{}' --json`
    - pick a usable connection for the target warehouse/entity.
-4. Discover MCP tools and schemas from `dekart tools`.
-5. Resolve required tool names from schema, not hardcoded names:
-   - report creation tool: creates a report container
-   - dataset creation tool: requires `report_id` and returns the dataset id as `result.id`
-   - query creation tool: requires `dataset_id` + `connection_id` and returns `result.query_id`
-   - query update tool: requires `query_id` + `query_text`
-   - query run tool: requires `query_id` and returns `result.query_job.id`
-   - job status tool: requires `job_id`; use only for diagnostics when `fetch-job --wait` fails or times out.
-6. Execute control plane in this exact order: report -> dataset -> query.
-7. Update SQL via query update tool:
-   - SQL must include geospatial output aliased exactly as lowercase `"geometry"`.
-8. Run query asynchronously via run tool and capture `job_id`.
-9. Wait for the job and fetch result rows in one command; do not hand-roll a poller:
-   `dekart fetch-job --job-id <id> --wait --timeout 300 --interval 5 --out <file>.parquet --json`
-   - Use the `job_id` from `result.query_job.id`.
-   - Treat a zero exit from `fetch-job --wait` plus a non-empty output parquet as successful fetch.
-   - Do not parse `fetch-job --json` as the tool status response; it may return flattened download metadata such as `status`, `path`, `bytes`, and `query_id`.
-   - If you need diagnostic job status, the canonical tool payload status path is `result.query_job.job_status`.
-   - Diagnostic success is `result.query_job.job_status == "JOB_STATUS_DONE"` and empty `result.query_job.job_error`.
-   - Diagnostic failure is non-empty `result.query_job.job_error`; stop and report the error.
-10. Validate map output with snapshot after successful job completion and row fetch:
+4. Save SQL to a file. SQL must include geospatial output aliased exactly as lowercase `"geometry"`.
+5. Run the query, wait for the job, fetch result rows, and return IDs/metadata in one command:
+   `dekart query --connection-id <id> --sql-file <path> --out <result.parquet> --wait --json`
+   - Use `--print` instead of `--json` when you only need to inspect rows.
+   - Read the saved parquet with duckdb when you need rows after a `--json` run.
+   - `--json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and saved file metadata.
+   - Treat a zero exit plus a non-empty output parquet as successful fetch.
+   - If the command reports `empty result (metadata/SHOW statement?)`, rewrite discovery SQL to return rows.
+   - Do not hand-roll a poller or use temporary scripts for run/wait/fetch.
+   - If you need diagnostic job status from `dekart call`, the canonical tool payload status path is `result.query_job.job_status`.
+6. Validate map output with snapshot after successful job completion and row fetch:
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
-11. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
+7. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
    - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and `report_url`.
 
 ### Failure handling
@@ -521,7 +240,7 @@ Do not run both flows for the same task unless user explicitly asks.
 * anti-loop rules for Dekart query/fetch commands:
    - Never pipe long-running `dekart` commands through `| tail` or `| head`; those buffers can hide progress until EOF and look idle.
    - Do not run Dekart query/fetch commands as background tasks watched by Monitor on a tailed file.
-   - Prefer `dekart fetch-job --wait`, which blocks and returns directly.
+   - Prefer `dekart query --wait`, which blocks and returns directly.
 * If remote snapshot fails with timeout (for example HTTP 504 / `snapshot timeout`), ask the user to enable local snapshots:
   `dekart snapshot-local install`
   Then retry snapshot with `dekart snapshot --report-id <report_id>`.
@@ -559,20 +278,7 @@ When uncertain about a specific pixel value or palette, read `references/map-sty
 
 Use H3 when the user requests spatial aggregation, heatmaps, density, or cell-based rollups.
 
-**Dialect note:** the `jslibs.h3.*` functions below are BigQuery JS UDFs and exist only on BigQuery. For other engines use the native binding: Snowflake `H3_*` functions, Postgres the `h3`/`h3-pg` extension (`h3_lat_lng_to_cell`, `h3_cell_to_boundary`), Wherobots/Sedona `ST_H3*`. Confirm the function exists before using it.
-
-Namespace by location (BigQuery):
-- US/default: `jslibs.h3.*`
-- EU: `jslibs.eu_h3.*`
-
-Functions:
-- `jslibs.h3.ST_H3(<point>, <resolution>)` - point to cell
-- `jslibs.h3.ST_H3_POLYFILLFROMGEOG(<polygon>, <resolution>)` - polygon fill
-- `jslibs.h3.ST_H3_BOUNDARY(<h3_index>)` - cell boundary for visualization
-
-Wherobots/Sedona H3:
-- `ST_H3CellIDs(geometry, <resolution>, <fullCover>)` returns H3 cell ids for a geometry.
-- `ST_H3ToGeom(<array_of_cells>)` converts H3 ids back to geometry for map output.
+Confirm the function exists before using it. Use the dialect reference for engine-specific H3 functions.
 
 Cost rules:
 1. Apply `WHERE` + hardcoded bbox first, then compute H3.

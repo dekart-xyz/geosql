@@ -2,6 +2,24 @@
   "skill_name": "geosql",
   "evals": [
     {
+      "id": "london-boroughs-dekart-bigquery",
+      "prompt": "create map of london boroughs with bigquery",
+      "assertions": [
+        "Agent provided result map URL.",
+        "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
+        "Agent verified map visually to confirm that all boroughs are present and the geometries look correct."
+      ]
+    },
+    {
+      "id": "london-boroughs-dekart-wherobots",
+      "prompt": "create map of london boroughs with wherobots",
+      "assertions": [
+        "Agent provided result map URL.",
+        "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
+        "Agent verified map visually to confirm that all boroughs are present and the geometries look correct."
+      ]
+    },
+    {
       "id": "london-boroughs",
       "prompt": "give me sql for london boundries",
       "assertions": [
@@ -11,21 +29,21 @@
         "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%)."
       ]
     },
-      {
-        "id": "paris-boundaries",
-        "prompt": "give me sql for paris boundries",
-        "assertions": [
-          "Run query and ensure that the result is not empty and contains exactly 1 row."
-        ]
-      },
-      {
-        "id": "berlin-create-map",
-        "prompt": "find berlin administrative boundaries in bigquery and create a dekart map from the result",
-        "assertions": [
-          "Agent performed Dekart init check first using dekart tools --json before any Dekart write/upload action.",
-          "Agent used geosql to upload the query result to Dekart and create a map.",
-          "Agent returned user map URL after map creation."
-        ]
-      }
+    {
+      "id": "paris-boundaries",
+      "prompt": "give me sql for paris boundries",
+      "assertions": [
+        "Run query and ensure that the result is not empty and contains exactly 1 row."
+      ]
+    },
+    {
+      "id": "berlin-create-map",
+      "prompt": "find berlin administrative boundaries in bigquery and create a dekart map from the result",
+      "assertions": [
+        "Agent performed Dekart init check first using dekart tools --json before any Dekart write/upload action.",
+        "Agent used geosql to upload the query result to Dekart and create a map.",
+        "Agent returned user map URL after map creation."
+      ]
+    }
   ]
 }
