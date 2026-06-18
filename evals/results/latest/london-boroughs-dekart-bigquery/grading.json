@@ -1,36 +1,87 @@
 {
   "assertion_results": [
     {
-      "assertion": "Agent provided result map URL.",
+      "assertion": "Agent performed Dekart init check first using dekart call --name list_connections",
       "passed": true,
-      "evidence": "Final answer included the Dekart report URL for the rendered map.",
-      "commands_run": [],
-      "result_snippet": "https://cloud.dekart.xyz/reports/27265ab6-88fe-495c-b01d-e49cf055d0a5"
+      "evidence": "After checking CLI availability, the agent ran list_connections before any query work, finding BigQuery/Snowflake/Wherobots connectors.",
+      "commands_run": [
+        "dekart call --name list_connections --args '{}' --json"
+      ],
+      "result_snippet": "connections: BigQuery (id d23434e7-..., is_default true), Wherobots, Snowflake"
+    },
+    {
+      "assertion": "Agent read BigQuery dialect refference from GeoSQL skill",
+      "passed": true,
+      "evidence": "Agent read references/bigquery.md from the skill base directory before drafting SQL, using its division_area and bbox-overlap patterns.",
+      "commands_run": [
+        "Read /Users/vladi/.claude/skills/geosql/references/bigquery.md"
+      ],
+      "result_snippet": "# BigQuery Reference ... Step 2: Resolve The Target Area ... division_area ... overlap pattern"
+    },
+    {
+      "assertion": "Agent used bbox in SQL to optimize query cost",
+      "passed": true,
+      "evidence": "All discovery/validation/map queries used a Greater London bbox overlap gate (xmax>=-0.55, xmin<=0.35, ymax>=51.28, ymin<=51.70) for partition pruning.",
+      "commands_run": [
+        "dekart call --name update_query (qmap.sql)",
+        "dekart run-query"
+      ],
+      "result_snippet": "AND bbox.xmax >= -0.55 AND bbox.xmin <= 0.35 AND bbox.ymax >= 51.28 AND bbox.ymin <= 51.70"
+    },
+    {
+      "assertion": "Agent used dekart update_query to dry-run result",
+      "passed": true,
+      "evidence": "Every query was prepared via update_query, whose dry_run payload was read for cost/validity before run-query. Final map query dry-ran at 677MB valid.",
+      "commands_run": [
+        "dekart call --name update_query --args-file /tmp/argsmap.json --json"
+      ],
+      "result_snippet": "{'estimated_bytes_processed': '677329113', 'supported': True, 'valid': True}"
     },
     {
       "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
       "passed": true,
-      "evidence": "SUM(ST_AREA(geometry)) over the 33 boroughs = 1577.37 km2, which is within +/-2% of 1,577 km2 (0.0% deviation). Row count also confirmed at 33.",
+      "evidence": "Re-ran SUM(ST_AREA(geometry))/1e6 over the 33 returned boroughs; total = 1577.4 km\u00b2, within \u00b12% of 1577 (tolerance 1545.5\u20131608.5).",
       "commands_run": [
-        "dekart query --sql-file /tmp/geosql/assert_area.sql (SUM(ST_AREA(geometry))/1e6 over 33 London boroughs)"
+        "dekart call --name update_query (area_recheck.sql)",
+        "dekart run-query",
+        "dekart preview"
       ],
-      "result_snippet": "n_boroughs=33  total_km2=1577.3684997335854"
+      "result_snippet": "n=33  total_km2=1577.4"
+    },
+    {
+      "assertion": "Agent provided result map URL.",
+      "passed": true,
+      "evidence": "Final answer included the canonical report URL resolved via dekart report-url.",
+      "commands_run": [
+        "dekart report-url --report-id 4306de5d-652b-4af5-b41f-3b59b4512d8d --json"
+      ],
+      "result_snippet": "report_url: https://cloud.dekart.xyz/reports/4306de5d-652b-4af5-b41f-3b59b4512d8d"
     },
     {
       "assertion": "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
       "passed": true,
-      "evidence": "Rendered local snapshot PNG and inspected it: the familiar Greater London outline with the Thames visible, all 33 borough polygons filled with the choropleth, hairline white borders, no gaps or stray geometries. Count of 33 corroborates completeness.",
+      "evidence": "Agent rendered and inspected the snapshot PNG; it shows all 33 boroughs tiling Greater London with the Thames visible and no gaps/overlaps. Row count check confirmed 33 polygons.",
       "commands_run": [
-        "dekart snapshot --report-id 27265ab6-88fe-495c-b01d-e49cf055d0a5 --out /tmp/geosql/snapshot.png",
-        "Read /tmp/geosql/snapshot.png"
+        "dekart snapshot --report-id 4306de5d-... --out /tmp/4306de5d-snapshot.png",
+        "Read /tmp/4306de5d-snapshot.png"
       ],
-      "result_snippet": "Snapshot saved: /tmp/geosql/snapshot.png; image shows complete London borough mosaic with Thames, area-encoded choropleth"
+      "result_snippet": "Choropleth of 33 boroughs across full Greater London extent, Thames threading through, contiguous coverage"
+    },
+    {
+      "assertion": "Verify final mag again with new snapshot, confirm it's not empty or broken.",
+      "passed": true,
+      "evidence": "Took a fresh snapshot during validation; 317KB PNG rendered with full borough choropleth (not basemap-only, not blank), matching the original.",
+      "commands_run": [
+        "dekart snapshot --report-id 4306de5d-... --out /tmp/4306de5d-revalidate.png",
+        "Read /tmp/4306de5d-revalidate.png"
+      ],
+      "result_snippet": "Snapshot saved (317547 bytes, Source: local); image shows filled 33-borough choropleth, not empty"
     }
   ],
   "summary": {
-    "passed": 3,
+    "passed": 8,
     "failed": 0,
-    "total": 3,
+    "total": 8,
     "pass_rate": 1.0
   }
 }

@@ -3,36 +3,46 @@
     {
       "assertion": "Agent provided result map URL.",
       "passed": true,
-      "evidence": "Final answer included the Dekart report URL returned by `dekart query --json` (report_url field).",
+      "evidence": "Resolved canonical user-facing URL via dekart report-url and presented it in the final answer.",
       "commands_run": [
-        "dekart query --connection-id fcc0f9ab-eff6-45c0-a34c-915a07383854 --sql-file /tmp/wb_map.sql --out /tmp/wb_map.parquet --wait --json"
+        "dekart report-url --report-id 1f889932-17af-4522-84af-82871125ac43 --json"
       ],
-      "result_snippet": "https://cloud.dekart.xyz/reports/b2671c9c-831f-4e39-9232-ccc6bc7e6d86"
+      "result_snippet": "report_url: https://cloud.dekart.xyz/reports/1f889932-17af-4522-84af-82871125ac43"
     },
     {
       "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
       "passed": true,
-      "evidence": "Re-ran SUM(ST_AreaSpheroid(geometry))/1e6 over the 33 boroughs = 1583.27 km\u00b2. Target 1577 km\u00b2 +/-2% = [1545.46, 1608.54]; 1583.27 falls within range (+0.4% of target).",
+      "evidence": "Summed ST_Area over geometries transformed to EPSG:27700 (British National Grid) for accurate metric area. Total = 1594.04 km\u00b2. Target 1577 \u00b12% = [1545.5, 1608.5]; 1594 is within range.",
       "commands_run": [
-        "dekart query --connection-id fcc0f9ab-eff6-45c0-a34c-915a07383854 --sql-file /tmp/wb_area_check.sql --out /tmp/wb_area_check.parquet --wait --print"
+        "SELECT COUNT(*) AS n, SUM(ST_Area(ST_Transform(geometry,'EPSG:4326','EPSG:27700')))/1e6 AS area_km2 FROM ... London boroughs filter"
       ],
-      "result_snippet": "n_boroughs=33  total_km2=1583.27"
+      "result_snippet": "n=33  area_km2=1594.0361623983842"
     },
     {
       "assertion": "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
       "passed": true,
-      "evidence": "Rendered a snapshot PNG and inspected it: showed the classic Greater London silhouette with 33 contiguous borough polygons, no gaps/overlaps, Thames corridor visible, choropleth coloring small inner boroughs dark and large outer boroughs light. Count (33) matches the SQL count.",
+      "evidence": "Inspected the rendered PNG: 33 contiguous borough polygons tile Greater London with no gaps or overshoot, recognizable city outline, City of London pale at center, large outer boroughs dark \u2014 geometries correct. Count of 33 also confirmed in SQL.",
       "commands_run": [
-        "dekart snapshot --report-id b2671c9c-831f-4e39-9232-ccc6bc7e6d86 --out /tmp/london-boroughs-snapshot.png",
-        "Read /tmp/london-boroughs-snapshot.png"
+        "dekart snapshot --report-id 1f889932-17af-4522-84af-82871125ac43 --out /tmp/1f889932-snapshot.png",
+        "Read /tmp/1f889932-snapshot.png"
       ],
-      "result_snippet": "Snapshot saved: /tmp/london-boroughs-snapshot.png; image shows full Greater London with all boroughs colored, Thames visible"
+      "result_snippet": "Snapshot saved (466079 bytes); image shows full Greater London tiled by 33 boroughs, choropleth by area_km2."
+    },
+    {
+      "assertion": "Verify final map again with new snapshot, confirm it's not empty or broken.",
+      "passed": true,
+      "evidence": "Took a second fresh snapshot after config was finalized and inspected it; render matches the first, shows all features (not basemap-only), not blank or broken.",
+      "commands_run": [
+        "dekart snapshot --report-id 1f889932-17af-4522-84af-82871125ac43 --out /tmp/1f889932-verify.png",
+        "Read /tmp/1f889932-verify.png"
+      ],
+      "result_snippet": "Snapshot saved (466185 bytes); identical valid render with 33 styled borough polygons over London."
     }
   ],
   "summary": {
-    "passed": 3,
+    "passed": 4,
     "failed": 0,
-    "total": 3,
+    "total": 4,
     "pass_rate": 1.0
   }
 }

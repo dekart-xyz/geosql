@@ -22,6 +22,7 @@ Assertions:
 [
   "Agent provided result map URL.",
   "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
-  "Agent verified map visually to confirm that all boroughs are present and the geometries look correct."
+  "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
+  "Verify final map again with new snapshot, confirm it's not empty or broken."
 ]
 

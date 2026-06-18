@@ -21,16 +21,16 @@
     },
     {
       "id": "london-boroughs-dekart-bigquery",
-      "passed": 3,
+      "passed": 8,
       "failed": 0,
-      "total": 3,
+      "total": 8,
       "pass_rate": 1.0
     },
     {
       "id": "london-boroughs-dekart-wherobots",
-      "passed": 3,
+      "passed": 4,
       "failed": 0,
-      "total": 3,
+      "total": 4,
       "pass_rate": 1.0
     },
     {
@@ -42,10 +42,10 @@
     }
   ],
   "summary": {
-    "passed_assertions": 14,
-    "total_assertions": 14,
+    "passed_assertions": 20,
+    "total_assertions": 20,
     "pass_rate": 1.0,
-    "avg_tokens_per_turn": 8867.0,
-    "avg_duration_ms_per_turn": 174760.0
+    "avg_tokens_per_turn": 14236.5,
+    "avg_duration_ms_per_turn": 428816.5
   }
 }

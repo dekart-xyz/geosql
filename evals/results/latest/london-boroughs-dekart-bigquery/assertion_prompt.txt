@@ -20,8 +20,13 @@ Rules:
 
 Assertions:
 [
-  "Agent provided result map URL.",
+  "Agent performed Dekart init check first using dekart call --name list_connections",
+  "Agent read BigQuery dialect refference from GeoSQL skill",
+  "Agent used bbox in SQL to optimize query cost",
+  "Agent used dekart update_query to dry-run result",
   "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
-  "Agent verified map visually to confirm that all boroughs are present and the geometries look correct."
+  "Agent provided result map URL.",
+  "Agent verified map visually to confirm that all boroughs are present and the geometries look correct.",
+  "Verify final mag again with new snapshot, confirm it's not empty or broken."
 ]
 

@@ -1,9 +1,9 @@
 ---
 name: geosql
-description: Build cost-safe Geospatial SQL for BigQuery, Snowflake, Wherobots and Postgres and render results on an interactive map.
+description: Build cost-safe Geospatial SQL for BigQuery, Snowflake, Wherobots and Postgres and/or render results on an interactive Dekart map.
 ---
 
-# GeoSQL (Claude)
+# GeoSQL
 
 ## Tools/CLI
 
@@ -19,12 +19,6 @@ Before using CLIs, verify availability if it was not done before:
 for c in bq snow dekart; do command -v $c >/dev/null && echo $c=ok || echo $c=missing; done
 ```
 
-If `dekart` is available, check available connectors:
-
-```bash
-dekart call --name list_connections --args '{}' --json
-```
-
 If no CLI is available, suggest installing the dekart CLI: `pip install dekart && dekart init`. `dekart init` is an interactive command that must be run by the user.
 
 The user has 3 options in `dekart init`:
@@ -33,6 +27,15 @@ The user has 3 options in `dekart init`:
 - self-hosted
 
 Help the user pick the best installation option for their needs.
+
+If `dekart` is available, check available connectors:
+
+```bash
+dekart call --name list_connections --args '{}' --json
+```
+
+If dekart available but not init, ask user to `dekart init`
+
 
 ## Dialect References
 
@@ -46,19 +49,13 @@ Use the matching reference for per-database SQL, CLI examples, and engine-specif
 ## Required Workflow
 
 Follow these steps in order. Do NOT write a final query until steps 1-3 are complete.
+Combine each step with examples in matching dialect reference.
 
 ### Step 1: Discover schema
 
-Discover available data objects before writing any query: start with database/share availability (where applicable), then confirm schemas, tables, and columns.
-Always verify exact object names and column types from the warehouse metadata; do not assume from general knowledge.
+Discover available data objects before writing any query: start with database/share availability (where applicable), then confirm schemas, tables, and columns. Always verify exact object names and column types from the warehouse metadata; do not assume from general knowledge.
 
 When multiple tables match the entity, sample each candidate for attribute density and prefer the richer source. Richer attributes enable stronger visual encoding in Step 5 and a stronger map validation case.
-
-Use the dialect reference for discovery SQL:
-- BigQuery: `references/bigquery.md`
-- Snowflake: `references/snowflake.md`
-- Postgres / PostGIS: `references/postgres.md`
-- Wherobots / Sedona: `references/wherobots.md`
 
 ### Step 2: Resolve the target area
 
@@ -74,7 +71,7 @@ Use the dialect reference for target-area SQL and fallbacks. Extract the exact b
 - Select only required columns; avoid `SELECT *`.
 - Add `LIMIT` for exploration.
 
-**CRITICAL: bbox overlap filter direction.** The scan gate must use the OVERLAP pattern, not containment. The feature's bbox must overlap the target area:
+**bbox overlap filter direction.** The scan gate must use the OVERLAP pattern, not containment. The feature's bbox must overlap the target area:
 
 ```
 -- CORRECT (overlap): feature extends into our area
@@ -90,14 +87,14 @@ AND bbox.xmax <= <area_xmax>   -- WRONG
 
 Use the dialect reference for draft query examples and engine-specific syntax. For map output, select a geometry column aliased exactly as lowercase `geometry`.
 
-**CRITICAL: cast 64-bit integer fields to 32-bit int or double.** Any numeric column bound to a Kepler visual channel (color, stroke width, size, height) must NOT be a 64-bit integer.
+**cast 64-bit integer fields to 32-bit int or double.** Any numeric column bound to a Kepler visual channel (color, stroke width, size, height) must NOT be a 64-bit integer.
 
 ### Step 4: Validate (mandatory)
 
 Do NOT present the query to the user without validating it first.
 
 1. Cost / safety gate.
-   * BigQuery: dry run to check estimated bytes. If using `dekart` use Dekart `update_query` to dry-run result (`dry_run.valid`, `dry_run.estimated_bytes_processed`) for validation.
+   * BigQuery: dry run to check estimated bytes. If using `dekart`, the mandatory `dekart call --name update_query` prepare step is also the dry-run gate; read `dry_run.valid` and `dry_run.estimated_bytes_processed` from that response before running `dekart run-query`.
      If using `bq` CLI, run the query with `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` and parse the JSON output for `totalBytesProcessed`.
    * If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
    * If estimated bytes exceed budget: do NOT execute. Instead, rewrite the query to be cheaper (tighter bbox, more filters, lower H3 resolution, etc) and validate again.
@@ -143,26 +140,35 @@ Use `snow sql` directly for Snowflake data and keep queries bounded. Full comman
 Use this when dekart CLI is available.
 
 - If dekart has no warehouse connectors configured, use it to upload CSV results from `bq` or `snow` and create a map that way.
-- If dekart has warehouse connectors, use `dekart query` to run SQL and create map directly from query results.
+- Otherwise use Dekart connectors to run queries.
 
 ### Artifact model
 
 The CLI stores map artifacts in this hierarchy:
 - `report`: top-level map container.
-- `dataset`: one data layer slot inside a report.
+- `dataset`: one data layer slot inside a report, may contain a SQL query or uploaded file.
 - `file`: uploaded data artifact attached to a dataset.
 - `query`: SQL attached to a dataset/connection and executed asynchronously.
-- `job`: execution instance for a query (`dekart query` handles update -> run -> wait -> fetch).
+- `job`: execution instance for a query (`dekart run-query` handles run -> wait -> fetch after the query has already been prepared).
 
 Important IDs:
+- `create_report` returns the canonical `report_id` at `result.report.id`, `result.report_id`, or `result.id`
 - `create_dataset` returns the dataset id at `result.id`.
-- `dekart query --json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and `result_file`.
+- `dekart run-query --json` returns `dataset_id`, `query_id`, `job_id`, terminal status, and `result_file`.
+- `report_url` fields returned directly by MCP tools may miss host name; resolve the user-facing URL with `dekart report-url --report-id <report_id> --json`.
 - In Kepler `map_config`, every layer `config.dataId`, filter `dataId`, and tooltip key must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label.
 
-For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Prefer `--sql-file` with `dekart query`.
+For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Save SQL to a file, then pass it to `update_query` through an args JSON file before running `dekart run-query`. The args file must be a JSON object with the prepared query id and SQL text, for example:
+
+```json
+{
+  "query_id": "<query_id>",
+  "query_text": "<full SQL text>"
+}
+```
 
 Control plane depends on execution mode:
-- Query mode (connectors available): create one `report` and one `dataset`, then reuse them with `dekart query` for update -> run -> wait -> fetch rows.
+- Query mode (connectors available): create `report` and dataset, create/update the query explicitly, then run `dekart run-query` for run -> wait -> fetch rows.
 - File-upload mode (no connectors): create `report` -> create `dataset` -> create `file`, then upload CSV and complete multipart flow.
 
 ### Mode selection (required)
@@ -171,7 +177,7 @@ Choose exactly one flow after gate/confirmation:
 
 1. Query mode:
    - Use when `list_connections` shows at least one usable warehouse connector.
-   - Execution path: create one report/dataset with `dekart call`, then run `dekart query --report-id <report_id> --dataset-id <dataset_id> --connection-id <id> --sql-file <path> --out-dir <dir> --wait --json`.
+   - Execution path: create one report + datasets with `dekart call`, prepare each dataset query with `create_dataset`, `create_query` + `update_query`, then run `dekart run-query --query-id <query_id> --out-dir <dir> --wait --json`.
 2. File-upload mode:
    - Use when no usable connector is available.
    - Execution path: `report -> dataset -> file -> upload-file`.
@@ -213,42 +219,58 @@ Do not run both flows for the same task unless user explicitly asks.
 
 ### Query mode (connectors available)
 
-1. Use CLI help for current command behavior: `dekart --help`, `dekart query --help`, `dekart snapshot --help`.
+1. Use CLI help for current command behavior: `dekart --help`, `dekart run-query --help`, `dekart snapshot --help`.
 2. Gate: use this flow by default when Dekart is installed and `list_connections` shows at least one usable connector; do not use this flow when Dekart is missing or no usable connector exists.
 3. Once gated-in, confirm available connections:
    - `dekart call --name list_connections --args '{}' --json`
    - pick a usable connection for the target warehouse/entity.
-4. Create exactly one report and one dataset for the session:
-   - `dekart call --name create_report --args '{}' --json`
-   - capture `report_id` from `result.report.id`, `result.report_id`, or `result.id`; capture `report_url` when present.
-   - `dekart call --name create_dataset --args '{"report_id":"<report_id>"}' --json`
-   - capture `dataset_id` from `result.id`, `result.dataset_id`, or `result.dataset.id`.
-5. Save SQL to a file. SQL must include geospatial output aliased exactly as lowercase `"geometry"` for the final map query.
-6. Run every discovery, validation, preview, and final map query against the same report/dataset:
-   `dekart query --report-id <report_id> --dataset-id <dataset_id> --connection-id <id> --sql-file <path> --out-dir <dir> --wait --json`
+4. Resolve required tool names from schema, not hardcoded names:
+   - report creation tool: creates a report container
+   - dataset creation tool: requires `report_id` and returns the dataset id as `result.id`
+   - query creation tool: requires `dataset_id`
+5. Execute control plane in this exact order: report -> dataset -> query -> run query.
+   - `dekart call --name create_report --args '{}' --json` -> capture `report_id` from `result.report.id`, `result.report_id`, or `result.id`.
+   - `dekart call --name create_dataset --args '{"report_id":"<report_id>"}' --json` -> capture `dataset_id` from `result.id`, `result.dataset_id`, or `result.dataset.id`. Note that datasets are single slot, re-running query owerwrites prevoise data.
+  – Save SQL to a file. SQL must include geospatial output aliased exactly as lowercase `"geometry"` for the final map query.
+6. Run all discovery, validation, preview, and assertion queries:
+   - Create or reuse one scratch query:
+     `dekart call --name create_query --args '{"dataset_id":"<scratch_dataset_id>","connection_id":"<id>"}' --json`
+   - Prepare it with the SQL file through `update_query`; for BigQuery, this response is the dry-run cost gate:
+     `dekart call --name update_query --args-file /tmp/update-query-args.json --json`
+     The args file must contain `{"query_id":"<scratch_query_id>","query_text":"<full SQL text>"}`.
+   - Only after `dry_run.valid` is true and cost is acceptable, execute and fetch:
+     `dekart run-query --query-id <scratch_query_id> --out-dir <dir> --wait --json`
    - Read `result_file` from the JSON response; do not guess `.csv` or `.parquet`.
    - Preview rows with `dekart preview <result_file> --limit 20`; inspect columns/types with `dekart preview <result_file> --schema`.
-   - `--json` returns `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, `report_url`, and `result_file`.
+   - `run-query --json` returns `dataset_id`, `query_id`, `job_id`, terminal status, and `result_file`.
    - Treat a zero exit plus a non-empty `result_file` as successful fetch.
    - If the command reports `empty result (metadata/SHOW statement?)`, rewrite discovery SQL to return rows.
    - Do not hand-roll a poller or use temporary scripts for run/wait/fetch.
    - If you need diagnostic job status from `dekart call`, the canonical tool payload status path is `result.query_job.job_status`.
-   - Create a new dataset only for an additional map layer. Create a new report only when the user explicitly asks for more than one map/report.
-7. Validate map output with snapshot after successful job completion and row fetch:
+7. Run the final map query against its **dedicated map-layer dataset**:
+   - Create the map-layer query:
+     `dekart call --name create_query --args '{"dataset_id":"<map_layer_dataset_id>","connection_id":"<id>"}' --json`
+   - Prepare it with `update_query` from the final SQL file and apply the BigQuery dry-run gate when applicable.
+     The args file must contain `{"query_id":"<map_layer_query_id>","query_text":"<full SQL text>"}`.
+   - Execute and fetch:
+     `dekart run-query --query-id <map_layer_query_id> --out-dir <dir> --wait --json`
+   - One dedicated dataset per layer. Create a new report only when the user explicitly asks for more than one map/report.
+   - The map-layer query is write-once: after it runs, never `update_query` or `run-query` it again. Run any later validation (area, length, counts, previews) on the scratch query from step 6 — re-running the map-layer query overwrites the layer with the new result and blanks the map.
+8. Validate map output with snapshot after successful job completion and row fetch:
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
-8. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
+9. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
    - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and `report_url`.
 
 ### Failure handling
 * Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.
 * If create-report or create-dataset returns 404 it likely issue with token or auth. Ask user to re-run `dekart init` and confirm before retrying.
 * Snapshot validation is mandatory, but diagnose in order: first verify map config bindings, columns, and view; if those are correct and the PNG is blank or missing WebGL features, treat it as a snapshot renderer issue and verify the interactive report.
-* anti-loop rules for Dekart query/fetch commands:
+* anti-loop rules for Dekart connector run/fetch commands:
    - Never pipe long-running `dekart` commands through `| tail` or `| head`; those buffers can hide progress until EOF and look idle.
-   - Do not run Dekart query/fetch commands as background tasks watched by Monitor on a tailed file.
-   - Prefer `dekart query --wait`, which blocks and returns directly.
+   - Do not run Dekart connector run/fetch commands as background tasks watched by Monitor on a tailed file.
+   - Prefer `dekart run-query --wait`, which blocks and returns directly.
 * If remote snapshot fails with timeout (for example HTTP 504 / `snapshot timeout`), ask the user to enable local snapshots:
   `dekart snapshot-local install`
   Then retry snapshot with `dekart snapshot --report-id <report_id>`.
@@ -257,9 +279,9 @@ Do not run both flows for the same task unless user explicitly asks.
   - confirm `layer.config.dataId` points to the report dataset id
   - confirm tooltip `fieldsToShow` keys and filter `dataId` values also use the report dataset id
   - confirm bound column names match exported dataset headers exactly (case-sensitive). Note: snowflake export columns names are uppercase by default.
-* Never present `report_path` as a Map URL or user-facing link.
-* If `report_url` is missing, report that the CLI did not return a usable Map URL and include `report_path` only as a diagnostic path.
-* Never reconstruct map URLs from config-derived host strings.
+  – conform dataset data is not owerwrite by a later query.
+* Never present `report_path` as a Map URL or user-facing link or manually user facing report URL.
+* Resolve the final Map URL with `dekart report-url --report-id <report_id> --json`; do not treat MCP `report_url` or `report_path` fields as canonical.
 * Never call create-report multiple times just to get URL fields.
 * Never call Dekart HTTP, config files, or anything outside the documented dekart CLI.
 
@@ -304,5 +326,5 @@ Cost rules:
 - PostGIS not enabled (`geometry_columns` errors): ask the user to run `CREATE EXTENSION postgis;`, then continue.
 - Wherobots: no local CLI fallback. If the dekart Wherobots connector is missing or auth fails, ask the user to configure it via `dekart init`; do not attempt a CLI workaround.
 - Over budget: do not execute, return cheaper variant.
-- Invalid query: return corrected SQL and rerun validation (`dry_run` for BigQuery, `COUNT(*)`/bounded preview for Snowflake, tightly bounded `COUNT(*)`/preview execution through Dekart query mode for Wherobots).
+- Invalid query: return corrected SQL and rerun validation (`update_query` dry-run for BigQuery, `COUNT(*)`/bounded preview for Snowflake, tightly bounded `COUNT(*)`/preview execution through Dekart connector mode for Wherobots).
 - Never install software automatically. Report prerequisite commands for the user to run.

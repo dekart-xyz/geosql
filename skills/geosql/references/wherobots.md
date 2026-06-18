@@ -4,7 +4,6 @@
 
 Wherobots is dekart-only here (no local CLI fallback). Discover catalogs/tables via dekart's connection, and confirm the geometry column and that it is in EPSG:4326 before drafting. Sedona uses `ST_*` functions similar to PostGIS.
 
-Run Wherobots discovery SQL through Dekart query mode. Use `dekart call --name list_connections --args '{}' --json` first and select a `CONNECTION_TYPE_WHEROBOTS` connection id, then run SQL with `dekart query`.
 
 Avoid `SHOW` / `DESCRIBE`. Prefer bounded row previews and metadata queries that return rows, for example:
 
@@ -55,7 +54,7 @@ Overture tables in Wherobots use `<theme>_<type>` names, for example `divisions_
 
 ## Step 2: Resolve The Target Area
 
-Use Wherobots Overture `divisions_division_area` when it is available. Run this through Dekart query mode:
+Use Wherobots Overture `divisions_division_area` when it is available. Run this through Dekart connector mode:
 
 ```sql
 SELECT
@@ -76,7 +75,7 @@ If no matching boundary exists in Wherobots Overture, use another boundary table
 
 ## Step 3: Draft The Query
 
-Wherobots Overture examples must run through Dekart query mode. Sedona does not support the PostGIS `&&` operator, so use the explicit bbox overlap pattern plus `ST_Intersects`. Keep the geospatial output column aliased exactly as lowercase `geometry`.
+Wherobots Overture examples must run through Dekart connector mode. Sedona does not support the PostGIS `&&` operator, so use the explicit bbox overlap pattern plus `ST_Intersects`. Keep the geospatial output column aliased exactly as lowercase `geometry`.
 
 ```sql
 WITH area AS (
