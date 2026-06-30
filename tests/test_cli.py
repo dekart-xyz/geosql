@@ -76,6 +76,13 @@ class CliInstallTest(unittest.TestCase):
 
         install.assert_called_once_with()
 
+    def test_skill_documents_snapshot_viewport_params(self):
+        skill_text = cli.ROOT_SKILL_FILE.read_text(encoding="utf-8")
+
+        self.assertIn("dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png --zoom", skill_text)
+        self.assertIn("--lat", skill_text)
+        self.assertIn("--lon", skill_text)
+
 
 if __name__ == "__main__":
     unittest.main()

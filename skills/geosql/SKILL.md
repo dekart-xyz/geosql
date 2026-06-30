@@ -258,6 +258,7 @@ Do not run both flows for the same task unless user explicitly asks.
    - The map-layer query is write-once: after it runs, never `update_query` or `run-query` it again. Run any later validation (area, length, counts, previews) on the scratch query from step 6 — re-running the map-layer query overwrites the layer with the new result and blanks the map.
 8. Validate map output with snapshot after successful job completion and row fetch:
    - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
+   - if the snapshot is too zoomed out, centered poorly, or the user asks to zoom/pan, rerun with transient viewport params instead of editing saved map state: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png --zoom <zoom> --lat <latitude> --lon <longitude>`; derive lat/lon from target area or bbox center, use `--lat` and `--lon` together, and preserve the same params on retry
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
 9. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
