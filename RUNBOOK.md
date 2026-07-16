@@ -54,6 +54,7 @@ Explicit installs:
 geosql install claude
 geosql install codex
 geosql install copilot
+geosql install all
 ```
 
 Expected paths:
@@ -61,6 +62,46 @@ Expected paths:
 - `~/.claude/skills/geosql/SKILL.md`
 - `~/.codex/skills/geosql/SKILL.md`
 - `~/.copilot/skills/geosql/SKILL.md`
+
+After each successful command, verify the optional Dekart step matches the current state:
+
+- No `dekart` on `PATH`: the short arrow-key menu explains the map-in-the-loop benefit, defaults to the recommended install option, and shows the exact pip and init commands before consent.
+- `dekart` installed but `dekart tools --json` is not ready: GeoSQL skips pip and offers only `dekart init`.
+- `dekart` installed inside an isolated GeoSQL environment: GeoSQL skips pip and, with consent, exposes a launcher beside the reachable `geosql` command before init.
+- `dekart tools --json` succeeds: GeoSQL reports both tools ready without prompting.
+- Non-interactive input/output: GeoSQL never runs pip or init and prints repeatable setup commands.
+- `geosql install all`: the Dekart check and optional prompt appear once, after all skill copies succeed.
+
+The Cloud setup path selected by `dekart init` does not require Docker. Declining or cancelling the optional step must return success because the GeoSQL skill is already installed.
+
+Run the installer regression tests:
+
+```bash
+python3 -m unittest tests.test_cli -v
+```
+
+### Disposable Docker-in-Docker shell
+
+For a clean interactive machine with Python, Claude Code, a nested Docker daemon, the repository mounted at `/workspace`, and host port 8080 forwarded:
+
+```bash
+make shell-docker-claude
+```
+
+The target uses a privileged Docker-in-Docker container so nested containers and their data disappear when the shell exits. **Disposable describes data cleanup, not security isolation:** `--privileged` can compromise a native Linux Docker host, and inherited Claude credentials are available to processes in the container. Run this target only with trusted repository code, or run Docker itself inside a disposable VM when you need a real host boundary.
+
+The local repository is the only read/write mount, so source changes persist. The interactive shell matches the invoking host UID/GID to avoid root-owned checkout files on Linux. The outer host publish for port 8080 is loopback-only. The nested `-p 8080:8080` listener is still reachable from trusted peer containers on the local Docker bridge, so do not use it for untrusted services. The local test image and Docker build cache remain after exit, but container state, Claude login created inside it, nested images, and nested containers are removed. The target inherits `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` when either is exported; otherwise run `/login` inside Claude. macOS Keychain login cannot be mounted into the Linux container.
+
+Inside the shell:
+
+```bash
+python -m pip install -e .
+geosql install claude
+docker run --rm -d --name dekart -p 8080:8080 dekartxyz/dekart
+claude
+```
+
+If host port 8080 is already occupied, Docker refuses to start the disposable shell without leaving a container behind.
 
 ## 5) Verify repository contains no legacy naming
 

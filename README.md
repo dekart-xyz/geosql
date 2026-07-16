@@ -18,41 +18,29 @@ With Python (interactive mode):
 pip install geosql && geosql
 ```
 
-Install directly into a supported agent:
+GeoSQL first installs the skill into your detected agent. It then checks whether the optional Dekart CLI is ready and, only when needed, asks before installing or initializing it. The prompt shows the exact commands and defaults to the recommended install option.
 
-```bash
-geosql install claude
-geosql install codex
-geosql install copilot
-```
-
-Or in Claude Code:
-
-```
-/plugin marketplace add dekart-xyz/geosql
-/plugin install geosql
-```
-
-After `geosql install copilot`, use GeoSQL from VS Code Copilot or Copilot CLI with prompts such as:
+After installing, prompt your agent like this:
 
 ```
 /geosql Show EV charger density along major roads and render a map
 ```
 
-### Install Dekart for map rendering and PostGIS support
+### Optional: maps and database connections with Dekart
 
-GeoSQL optionally uses [Dekart](https://github.com/dekart-xyz/dekart): an open-source Kepler.gl backend with connectors for PostGIS, BigQuery, and Snowflake. You can run Dekart locally with one docker command, [self-host](https://dekart.xyz/docs/self-hosting/docker/) it on your own infrastructure, or use Dekart Cloud.
+GeoSQL can use [Dekart](https://github.com/dekart-xyz/dekart) so your agent renders maps, reads them back to fix geometry, and connects to PostGIS, BigQuery, Snowflake, or Wherobots.
 
-Run Dekart locally (skip this step to use [Dekart Cloud](https://cloud.dekart.xyz?ref=geosql-github)):
+After a successful install, GeoSQL offers to set up Dekart:
+
+- **Install Dekart CLI** (recommended) runs the `pip` install and `dekart init`. Already installed and configured? GeoSQL detects it and skips ahead.
+- **Not now** (or Escape / Ctrl+C / a non-interactive terminal) leaves GeoSQL installed and prints the commands for later:
+
 ```bash
-docker run -p 8080:8080 dekartxyz/dekart
+python -m pip install dekart
+dekart init
 ```
 
-Install the Dekart CLI:
-```
-pip install dekart && dekart init
-```
-Follow CLI and dekart prompts to connect your PostGIS, BigQuery, Snowflake  or Wherobots database.
+`dekart init` connects to [Dekart Cloud](https://cloud.dekart.xyz?ref=geosql-github) (no Docker needed), or point it at a local or [self-hosted](https://dekart.xyz/docs/self-hosting/docker/) instance.
 
 ## Example prompts to try in your agent:
 

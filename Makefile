@@ -1,10 +1,13 @@
-.PHONY: help shell-dekart-claude shell-dekart-copilot shell-bq-claude shell-no-warehouses _shell-agent-base
+.PHONY: help shell-dekart-claude shell-dekart-copilot shell-bq-claude shell-docker-claude shell-no-warehouses _shell-agent-base
+
+GEOSQL_DIND_IMAGE ?= geosql-dind-claude:local
 
 help:
 	@echo "Targets:"
 	@echo "  make shell-dekart-claude  # isolated shell: has claude+dekart, hides bq+snow"
 	@echo "  make shell-dekart-copilot # isolated shell: has copilot+dekart, hides bq+snow"
 	@echo "  make shell-bq-claude      # isolated shell: has claude+bq, hides dekart+snow"
+	@echo "  make shell-docker-claude  # privileged disposable DinD shell (trusted code only), port 8080"
 
 shell-dekart-claude:
 	@$(MAKE) _shell-agent-base AGENT=claude INCLUDE_DEKART=1 INCLUDE_BQ=0 INCLUDE_SNOW=0
@@ -14,6 +17,59 @@ shell-dekart-copilot:
 
 shell-bq-claude:
 	@$(MAKE) _shell-agent-base AGENT=claude INCLUDE_DEKART=0 INCLUDE_BQ=1 INCLUDE_SNOW=0
+
+shell-docker-claude:
+	@set -eu; \
+	command -v docker >/dev/null 2>&1 || { echo "Need 'docker' in PATH." >&2; exit 1; }; \
+	docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }; \
+	docker buildx version >/dev/null 2>&1 || { echo "Need Docker Buildx for this target." >&2; exit 1; }; \
+	echo "Building disposable GeoSQL test image $(GEOSQL_DIND_IMAGE)..."; \
+	docker buildx build --load --progress=plain --file Dockerfile.test-shell --tag "$(GEOSQL_DIND_IMAGE)" .; \
+	echo "WARNING: --privileged is not a security boundary; run trusted code only."; \
+	echo "Starting Docker-in-Docker; only the mounted repository persists after exit."; \
+	docker run --rm -it \
+		--privileged \
+		--publish 127.0.0.1:8080:8080 \
+		--env ANTHROPIC_API_KEY \
+		--env CLAUDE_CODE_OAUTH_TOKEN \
+		--env GEOSQL_HOST_UID="$$(id -u)" \
+		--env GEOSQL_HOST_GID="$$(id -g)" \
+		--mount type=bind,source="$(CURDIR)",target=/workspace \
+		--workdir /workspace \
+		"$(GEOSQL_DIND_IMAGE)" \
+		bash -lc 'set -eu; \
+			export PATH="/opt/venv/bin:$$PATH"; \
+			dockerd > /tmp/dockerd.log 2>&1 & \
+			for attempt in $$(seq 1 60); do \
+				docker info >/dev/null 2>&1 && break; \
+				sleep 0.5; \
+			done; \
+			docker info >/dev/null 2>&1 || { cat /tmp/dockerd.log >&2; exit 1; }; \
+			HOST_UID="$${GEOSQL_HOST_UID:-0}"; \
+			HOST_GID="$${GEOSQL_HOST_GID:-0}"; \
+			GROUP_NAME="$$(getent group "$$HOST_GID" | cut -d: -f1 || true)"; \
+			if [ -z "$$GROUP_NAME" ]; then groupadd --gid "$$HOST_GID" geosql-test; GROUP_NAME=geosql-test; fi; \
+			USER_NAME="$$(getent passwd "$$HOST_UID" | cut -d: -f1 || true)"; \
+			if [ -z "$$USER_NAME" ]; then useradd --create-home --uid "$$HOST_UID" --gid "$$GROUP_NAME" geosql-test; USER_NAME=geosql-test; fi; \
+			USER_HOME="$$(getent passwd "$$USER_NAME" | cut -d: -f6)"; \
+			usermod --gid "$$GROUP_NAME" "$$USER_NAME"; \
+			usermod --append --groups docker "$$USER_NAME"; \
+			chown -R "$$HOST_UID:$$HOST_GID" /opt/venv "$$USER_HOME"; \
+			echo; \
+			echo "Disposable GeoSQL shell ready."; \
+			echo "  Source: /workspace (mounted read/write)"; \
+			echo "  User: $$USER_NAME ($$HOST_UID:$$HOST_GID)"; \
+			echo "  Python: $$(python --version)"; \
+			echo "  Claude: $$(claude --version)"; \
+			echo "  Docker: $$(docker version --format {{.Client.Version}}/{{.Server.Version}})"; \
+			echo "  Host port 8080 forwards to this container."; \
+			echo; \
+			echo "Try:"; \
+			echo "  python -m pip install -e ."; \
+			echo "  claude  # run /login unless an auth environment variable was inherited"; \
+			echo "  docker run --rm -d --name dekart -p 8080:8080 dekartxyz/dekart"; \
+			echo; \
+			exec gosu "$$USER_NAME" env HOME="$$USER_HOME" PATH="/opt/venv/bin:$$PATH" bash --rcfile /etc/geosql-test-shell.bashrc'
 
 _shell-agent-base:
 	@set -eu; \
