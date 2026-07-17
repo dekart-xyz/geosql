@@ -20,6 +20,7 @@ AGENT_LABELS = {
     "claude": "Claude Code",
     "codex": "Codex",
     "copilot": "GitHub Copilot",
+    "opencode": "OpenCode",
     "all": "your selected agents",
 }
 
@@ -33,7 +34,7 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command")
 
     install = subparsers.add_parser("install", help="Install geosql into a supported CLI.")
-    install.add_argument("target", choices=["claude", "codex", "copilot", "all"], help="CLI target to install geosql into.")
+    install.add_argument("target", choices=["claude", "codex", "copilot", "opencode", "all"], help="CLI target to install geosql into.")
 
     return parser
 
@@ -508,18 +509,26 @@ def install_copilot_skill():
     return install_skill_at(Path.home() / ".copilot" / "skills" / "geosql", "GitHub Copilot")
 
 
+def install_opencode_skill():
+    """Install geosql files into OpenCode skill directory."""
+    return install_skill_at(Path.home() / ".config" / "opencode" / "skills" / "geosql", "OpenCode")
+
+
 def detect_installed_agents():
     """Detect available agents and return ordered list of target ids."""
     detected = []
     claude_present = shutil.which("claude") is not None or (Path.home() / ".claude").exists()
     codex_present = shutil.which("codex") is not None or (Path.home() / ".codex").exists()
     copilot_present = shutil.which("copilot") is not None or (Path.home() / ".copilot").exists()
+    opencode_present = shutil.which("opencode") is not None or (Path.home() / ".config" / "opencode").exists()
     if claude_present:
         detected.append("claude")
     if codex_present:
         detected.append("codex")
     if copilot_present:
         detected.append("copilot")
+    if opencode_present:
+        detected.append("opencode")
     return detected
 
 
@@ -533,6 +542,8 @@ def manual_install_hint():
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.codex/skills/geosql/references/")
     print(f"  3) Copilot: copy {ROOT_SKILL_FILE} -> ~/.copilot/skills/geosql/SKILL.md")
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.copilot/skills/geosql/references/")
+    print(f"  4) OpenCode: copy {ROOT_SKILL_FILE} -> ~/.config/opencode/skills/geosql/SKILL.md")
+    print(f"     and {ROOT_REFERENCES_DIR} -> ~/.config/opencode/skills/geosql/references/")
     return 1
 
 
@@ -554,6 +565,9 @@ def run_interactive_install():
     if "copilot" in detected:
         labels.append("Install for GitHub Copilot")
         targets.append("copilot")
+    if "opencode" in detected:
+        labels.append("Install for OpenCode")
+        targets.append("opencode")
     if len(detected) > 1:
         labels.append("Install for All detected")
         targets.append("all")
@@ -594,11 +608,14 @@ def handle_install_target(target):
         code = install_codex_skill()
     elif target == "copilot":
         code = install_copilot_skill()
+    elif target == "opencode":
+        code = install_opencode_skill()
     elif target == "all":
         code = 0
         code = max(code, install_claude_skill())
         code = max(code, install_codex_skill())
         code = max(code, install_copilot_skill())
+        code = max(code, install_opencode_skill())
     else:
         print(f"Unsupported install target: {target}", file=sys.stderr)
         return 2
