@@ -33,6 +33,20 @@ class CliInstallTest(unittest.TestCase):
             self.assertTrue((skill_dir / "references" / "postgres.md").exists())
             self.assertTrue((skill_dir / "references" / "wherobots.md").exists())
 
+    def test_install_opencode_skill_copies_skill_and_references(self):
+        with temp_home() as home:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(cli.install_opencode_skill(), 0)
+
+            skill_dir = home / ".config" / "opencode" / "skills" / "geosql"
+            self.assertTrue((skill_dir / "SKILL.md").exists())
+            self.assertTrue((skill_dir / "references" / "map-styling.md").exists())
+            self.assertTrue((skill_dir / "references" / "bigquery.md").exists())
+            self.assertTrue((skill_dir / "references" / "snowflake.md").exists())
+            self.assertTrue((skill_dir / "references" / "postgres.md").exists())
+            self.assertTrue((skill_dir / "references" / "wherobots.md").exists())
+
     def test_handle_install_target_accepts_copilot(self):
         with mock.patch("geosql.cli.install_copilot_skill", return_value=0) as install:
             with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
@@ -41,16 +55,26 @@ class CliInstallTest(unittest.TestCase):
         install.assert_called_once_with()
         dekart.assert_called_once_with("GitHub Copilot")
 
+    def test_handle_install_target_accepts_opencode(self):
+        with mock.patch("geosql.cli.install_opencode_skill", return_value=0) as install:
+            with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
+                self.assertEqual(cli.handle_install_target("opencode"), 0)
+
+        install.assert_called_once_with()
+        dekart.assert_called_once_with("OpenCode")
+
     def test_handle_install_target_all_installs_all_targets(self):
         with mock.patch("geosql.cli.install_claude_skill", return_value=0) as claude:
             with mock.patch("geosql.cli.install_codex_skill", return_value=0) as codex:
                 with mock.patch("geosql.cli.install_copilot_skill", return_value=0) as copilot:
-                    with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
-                        self.assertEqual(cli.handle_install_target("all"), 0)
+                    with mock.patch("geosql.cli.install_opencode_skill", return_value=0) as opencode:
+                        with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
+                            self.assertEqual(cli.handle_install_target("all"), 0)
 
         claude.assert_called_once_with()
         codex.assert_called_once_with()
         copilot.assert_called_once_with()
+        opencode.assert_called_once_with()
         dekart.assert_called_once_with("your selected agents")
 
     def test_failed_skill_install_does_not_offer_dekart(self):
@@ -66,6 +90,12 @@ class CliInstallTest(unittest.TestCase):
             with mock.patch("geosql.cli.shutil.which", return_value=None):
                 self.assertEqual(cli.detect_installed_agents(), ["copilot"])
 
+    def test_detect_installed_agents_includes_opencode_home(self):
+        with temp_home() as home:
+            (home / ".config" / "opencode").mkdir(parents=True)
+            with mock.patch("geosql.cli.shutil.which", return_value=None):
+                self.assertEqual(cli.detect_installed_agents(), ["opencode"])
+
     def test_manual_install_hint_lists_copilot_paths(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -74,6 +104,8 @@ class CliInstallTest(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("~/.copilot/skills/geosql/SKILL.md", text)
         self.assertIn("~/.copilot/skills/geosql/references/", text)
+        self.assertIn("~/.config/opencode/skills/geosql/SKILL.md", text)
+        self.assertIn("~/.config/opencode/skills/geosql/references/", text)
 
     def test_non_interactive_single_copilot_detection_installs_copilot(self):
         env = {"DO_NOT_TRACK": "1", "HOME": os.environ.get("HOME", "")}
