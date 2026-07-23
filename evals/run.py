@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run geosql eval cases through Claude CLI and grade assertions with the same session."""
+"""Run geosql eval cases through Claude CLI and grade assertions (supports isolated or same-session modes)."""
 
 import argparse
 import json
@@ -31,6 +31,12 @@ def parse_args():
         "--case",
         default="",
         help="Run only one case by id from evals.json.",
+    )
+    parser.add_argument(
+        "--grading-mode",
+        default="same-session",
+        choices=["isolated", "same-session"],
+        help="Grading mode: 'same-session' (default, retains legacy baseline) or 'isolated' (fresh session with read-only execution transcript evidence).",
     )
     parser.add_argument(
         "--permission-mode",
@@ -337,6 +343,104 @@ def build_assertion_prompt(assertions):
     )
 
 
+def truncate_text(value, max_chars=4000):
+    """Truncate text retaining head and tail if it exceeds max_chars limit."""
+    text = str(value or "").strip()
+    marker = "\n...[middle content truncated]...\n"
+    if len(text) <= max_chars:
+        return text
+    if max_chars <= len(marker):
+        return text[:max_chars]
+    available = max_chars - len(marker)
+    head_chars = available * 2 // 3
+    tail_chars = available - head_chars
+    return text[:head_chars] + marker + text[-tail_chars:]
+
+
+def format_generation_transcript(events, max_chars_per_block=4000, max_total_chars=16000):
+    """Format full generation trace (assistant tool calls, text, and tool execution outputs) as a read-only transcript."""
+    lines = []
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "assistant":
+            message = event.get("message", {})
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content", [])
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                block_type = block.get("type")
+                if block_type == "text":
+                    text = (block.get("text") or "").strip()
+                    if text:
+                        lines.append(f"[ASSISTANT TEXT]\n{truncate_text(text, max_chars_per_block)}")
+                elif block_type == "tool_use":
+                    name = block.get("name", "")
+                    tool_input = block.get("input", {})
+                    input_str = (
+                        json.dumps(tool_input, ensure_ascii=False)
+                        if isinstance(tool_input, dict)
+                        else str(tool_input)
+                    )
+                    lines.append(f"[TOOL USE: {name}]\nInput: {truncate_text(input_str, max_chars_per_block)}")
+        elif event_type == "user":
+            tool_result = event.get("tool_use_result")
+            if isinstance(tool_result, dict):
+                stdout = str(tool_result.get("stdout") or "").strip()
+                stderr = str(tool_result.get("stderr") or "").strip()
+                content = tool_result.get("content")
+                output_parts = []
+                if stdout:
+                    output_parts.append(f"stdout:\n{truncate_text(stdout, max_chars_per_block)}")
+                if stderr:
+                    output_parts.append(f"stderr:\n{truncate_text(stderr, max_chars_per_block)}")
+                if not output_parts and content is not None:
+                    c_str = str(content).strip()
+                    output_parts.append(f"output:\n{truncate_text(c_str, max_chars_per_block)}")
+                if output_parts:
+                    lines.append(f"[TOOL RESULT]\n" + "\n".join(output_parts))
+    full_transcript = "\n\n".join(lines)
+    return truncate_text(full_transcript, max_total_chars)
+
+
+def build_isolated_assertion_prompt(skill_prompt, output_text, assertions, gen_events=None):
+    """Build prompt for an independent Claude session to grade assertions with read-only execution transcript evidence."""
+    assertions_json = json.dumps(assertions, ensure_ascii=False, indent=2)
+    transcript_text = format_generation_transcript(gen_events or [])
+    return (
+        "You are an impartial evaluation judge. Analyze the execution transcript and final response for the given task prompt, and validate each assertion below.\n\n"
+        "=== ORIGINAL TASK PROMPT ===\n"
+        f"{skill_prompt}\n\n"
+        "=== READ-ONLY EXECUTION TRANSCRIPT (Tool Calls & Outputs) ===\n"
+        f"{transcript_text or '(No tool calls recorded)'}\n\n"
+        "=== FINAL GENERATED RESPONSE ===\n"
+        f"{output_text}\n\n"
+        "Rules:\n"
+        "1. For EACH assertion, actively validate whether the execution transcript and final response satisfy it.\n"
+        "2. Do NOT rely solely on self-reported claims in the final response if the assertion requires process verification (e.g. tool execution, query dry-runs, file checks); verify against the execution transcript or run bq queries yourself.\n"
+        "3. If validation requires data checks, run bq queries yourself.\n"
+        "4. If you cannot validate an assertion or the response/execution fails it, mark passed=false.\n"
+        "5. Output ONLY valid JSON.\n"
+        "6. JSON format:\n"
+        "{\n"
+        '  "assertion_results": [\n'
+        "    {\n"
+        '      "assertion": "<string>",\n'
+        '      "passed": true,\n'
+        '      "evidence": "<short evidence>",\n'
+        '      "commands_run": ["<command1>", "<command2>"],\n'
+        '      "result_snippet": "<short stdout/result snippet>"\n'
+        "    }\n"
+        "  ],\n"
+        '  "summary": {"passed": 0, "failed": 0, "total": 0, "pass_rate": 0.0}\n'
+        "}\n\n"
+        f"Assertions:\n{assertions_json}\n"
+    )
+
+
 def collect_benchmark_from_disk(out_dir):
     """Aggregate benchmark summary from all case grading.json files on disk."""
     case_summaries = []
@@ -432,8 +536,17 @@ def main():
         output_text = gen_result.get("result", "")
 
         assertions = case.get("assertions", [])
-        assertion_prompt = build_assertion_prompt(assertions)
-        log("  -> Running same-session assertion grading...")
+        if args.grading_mode == "isolated":
+            assertion_prompt = build_isolated_assertion_prompt(
+                skill_prompt, output_text, assertions, gen_events=gen_events
+            )
+            grade_resume_session = ""
+            log("  -> Running isolated-session assertion grading...")
+        else:
+            assertion_prompt = build_assertion_prompt(assertions)
+            grade_resume_session = session_id
+            log("  -> Running same-session assertion grading...")
+
         grade_events, grade_result = run_claude_stream(
             claude_path,
             args.model,
@@ -442,7 +555,7 @@ def main():
             args.permission_mode,
             args.allowed_tools,
             args.safe_mode,
-            resume_session_id=session_id,
+            resume_session_id=grade_resume_session,
             show_io=args.show_io,
             io_max_chars=args.io_max_chars,
             turn_name=f"{case_id}:grading",
@@ -499,6 +612,7 @@ def main():
         "run_config": {
             "model": args.model,
             "thinking_level": args.thinking_level,
+            "grading_mode": args.grading_mode,
         },
         "cases": case_summaries,
         "summary": {
