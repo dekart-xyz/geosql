@@ -7,7 +7,7 @@ This runbook executes the full eval cycle in one command using Claude CLI.
 For each case in `evals/evals.json`:
 
 1. Runs the task with `/geosql ...`.
-2. Asks Claude to validate all assertions in an isolated session (default, prevents self-evaluation bias) or in the same session (`--grading-mode same-session`).
+2. Asks Claude to validate all assertions in the same session by default (retains historical comparability) or in an isolated session (`--grading-mode isolated`) to prevent self-evaluation bias.
 3. Claude can run `bq`/`gcloud` commands while validating assertions.
 4. Saves grading and logs.
 
@@ -98,9 +98,9 @@ python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --safe-mode
 Grading mode:
 
 ```bash
-# Default: isolated session (impartial judge)
-python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --grading-mode isolated
-
-# Legacy: same session grading
+# Default: same-session grading (retains historical comparability)
 python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --grading-mode same-session
+
+# Opt-in: isolated session (impartial judge)
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --grading-mode isolated
 ```
