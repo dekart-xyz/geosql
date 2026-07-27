@@ -9,6 +9,9 @@ import sysconfig
 from importlib import metadata
 from pathlib import Path
 from urllib import error, request
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from geosql.installation_id import get_installation_id
 from geosql.paths import references_dir_path, skill_file_path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -65,6 +68,15 @@ def send_version_ping():
     if telemetry_disabled():
         return
     url = os.environ.get("GEOSQL_VERSION_CHECK_URL", DEFAULT_VERSION_CHECK_URL).strip() or DEFAULT_VERSION_CHECK_URL
+    try:
+        installation_id = get_installation_id()
+        url_parts = urlsplit(url)
+        query = parse_qsl(url_parts.query, keep_blank_values=True)
+        query.append(("installation_id", installation_id))
+        url = urlunsplit((url_parts.scheme, url_parts.netloc, url_parts.path, urlencode(query), url_parts.fragment))
+    except Exception:
+        # Identity persistence is best effort and must not block the version check.
+        pass
     version = get_installed_version()
     req = request.Request(url=url, method="GET")
     req.add_header("User-Agent", f"geosql/{version}")

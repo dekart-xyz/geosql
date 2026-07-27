@@ -42,6 +42,10 @@ dekart init
 
 `dekart init` connects to [Dekart Cloud](https://cloud.dekart.xyz?ref=geosql-github) (no Docker needed), or point it at a local or [self-hosted](https://dekart.xyz/docs/self-hosting/docker/) instance.
 
+## Version telemetry
+
+GeoSQL sends a best-effort version check with its package version and an opaque random installation ID. GeoSQL and Dekart CLI share the ID at `${XDG_CONFIG_HOME:-~/.config}/dekart/installation_id`; deleting that file resets it. Set `DO_NOT_TRACK=1` (or `DNT=1`) to disable the version check before an ID is created. CI sends a reserved non-persisted test ID.
+
 ## Example prompts to try in your agent:
 
 Real estate analysis:
