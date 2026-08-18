@@ -1,6 +1,7 @@
 ---
 name: geosql
 description: Build cost-safe Geospatial SQL for BigQuery, Snowflake, Wherobots and Postgres and/or render results on an interactive Dekart map.
+user-invocable: true
 ---
 
 # GeoSQL

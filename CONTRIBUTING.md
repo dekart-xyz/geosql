@@ -16,6 +16,7 @@ python -m geosql install claude
 python -m geosql install codex
 python -m geosql install copilot
 python -m geosql install opencode
+python -m geosql install vibe
 geosql
 geosql install all
 ```

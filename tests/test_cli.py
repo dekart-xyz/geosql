@@ -14,11 +14,17 @@ from geosql import cli
 def temp_home():
     with tempfile.TemporaryDirectory() as directory:
         home = Path(directory)
-        with mock.patch("geosql.cli.Path.home", return_value=home):
+        with mock.patch("geosql.cli.Path.home", return_value=home), mock.patch.dict(os.environ, {"VIBE_HOME": ""}):
             yield home
 
 
 class CliInstallTest(unittest.TestCase):
+    def test_parser_accepts_vibe_target(self):
+        args = cli.build_parser().parse_args(["install", "vibe"])
+
+        self.assertEqual(args.command, "install")
+        self.assertEqual(args.target, "vibe")
+
     def test_install_copilot_skill_copies_skill_and_references(self):
         with temp_home() as home:
             output = io.StringIO()
@@ -47,6 +53,29 @@ class CliInstallTest(unittest.TestCase):
             self.assertTrue((skill_dir / "references" / "postgres.md").exists())
             self.assertTrue((skill_dir / "references" / "wherobots.md").exists())
 
+    def test_install_vibe_skill_copies_skill_and_references(self):
+        with temp_home() as home:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(cli.install_vibe_skill(), 0)
+
+            skill_dir = home / ".vibe" / "skills" / "geosql"
+            self.assertTrue((skill_dir / "SKILL.md").exists())
+            self.assertTrue((skill_dir / "references" / "map-styling.md").exists())
+            self.assertTrue((skill_dir / "references" / "bigquery.md").exists())
+            self.assertTrue((skill_dir / "references" / "snowflake.md").exists())
+            self.assertTrue((skill_dir / "references" / "postgres.md").exists())
+            self.assertTrue((skill_dir / "references" / "wherobots.md").exists())
+
+    def test_install_vibe_skill_uses_configured_vibe_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            vibe_home = Path(directory) / "custom-vibe"
+            with mock.patch.dict(os.environ, {"VIBE_HOME": str(vibe_home)}):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(cli.install_vibe_skill(), 0)
+
+            self.assertTrue((vibe_home / "skills" / "geosql" / "SKILL.md").exists())
+
     def test_handle_install_target_accepts_copilot(self):
         with mock.patch("geosql.cli.install_copilot_skill", return_value=0) as install:
             with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
@@ -63,18 +92,28 @@ class CliInstallTest(unittest.TestCase):
         install.assert_called_once_with()
         dekart.assert_called_once_with("OpenCode")
 
+    def test_handle_install_target_accepts_vibe(self):
+        with mock.patch("geosql.cli.install_vibe_skill", return_value=0) as install:
+            with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
+                self.assertEqual(cli.handle_install_target("vibe"), 0)
+
+        install.assert_called_once_with()
+        dekart.assert_called_once_with("Mistral Vibe")
+
     def test_handle_install_target_all_installs_all_targets(self):
         with mock.patch("geosql.cli.install_claude_skill", return_value=0) as claude:
             with mock.patch("geosql.cli.install_codex_skill", return_value=0) as codex:
                 with mock.patch("geosql.cli.install_copilot_skill", return_value=0) as copilot:
                     with mock.patch("geosql.cli.install_opencode_skill", return_value=0) as opencode:
-                        with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
-                            self.assertEqual(cli.handle_install_target("all"), 0)
+                        with mock.patch("geosql.cli.install_vibe_skill", return_value=0) as vibe:
+                            with mock.patch("geosql.cli.offer_dekart_setup", return_value=0) as dekart:
+                                self.assertEqual(cli.handle_install_target("all"), 0)
 
         claude.assert_called_once_with()
         codex.assert_called_once_with()
         copilot.assert_called_once_with()
         opencode.assert_called_once_with()
+        vibe.assert_called_once_with()
         dekart.assert_called_once_with("your selected agents")
 
     def test_failed_skill_install_does_not_offer_dekart(self):
@@ -96,6 +135,27 @@ class CliInstallTest(unittest.TestCase):
             with mock.patch("geosql.cli.shutil.which", return_value=None):
                 self.assertEqual(cli.detect_installed_agents(), ["opencode"])
 
+    def test_detect_installed_agents_includes_vibe_binary(self):
+        with temp_home():
+            with mock.patch("geosql.cli.shutil.which", side_effect=lambda name: "/bin/vibe" if name == "vibe" else None):
+                self.assertEqual(cli.detect_installed_agents(), ["vibe"])
+
+    def test_detect_installed_agents_includes_vibe_home(self):
+        with temp_home() as home:
+            (home / ".vibe").mkdir()
+            with mock.patch("geosql.cli.shutil.which", return_value=None):
+                self.assertEqual(cli.detect_installed_agents(), ["vibe"])
+
+    def test_detect_installed_agents_includes_configured_vibe_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            isolated_home = Path(directory)
+            vibe_home = isolated_home / "custom-vibe"
+            vibe_home.mkdir()
+            with mock.patch.dict(os.environ, {"VIBE_HOME": str(vibe_home)}):
+                with mock.patch("geosql.cli.Path.home", return_value=isolated_home):
+                    with mock.patch("geosql.cli.shutil.which", return_value=None):
+                        self.assertEqual(cli.detect_installed_agents(), ["vibe"])
+
     def test_manual_install_hint_lists_copilot_paths(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -106,6 +166,18 @@ class CliInstallTest(unittest.TestCase):
         self.assertIn("~/.copilot/skills/geosql/references/", text)
         self.assertIn("~/.config/opencode/skills/geosql/SKILL.md", text)
         self.assertIn("~/.config/opencode/skills/geosql/references/", text)
+        self.assertIn("~/.vibe/skills/geosql/SKILL.md", text)
+        self.assertIn("~/.vibe/skills/geosql/references/", text)
+
+    def test_manual_install_hint_uses_configured_vibe_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            vibe_home = Path(directory) / "not-created"
+            output = io.StringIO()
+            with mock.patch.dict(os.environ, {"VIBE_HOME": str(vibe_home)}):
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(cli.manual_install_hint(), 1)
+
+            self.assertIn(str(vibe_home / "skills" / "geosql" / "SKILL.md"), output.getvalue())
 
     def test_non_interactive_single_copilot_detection_installs_copilot(self):
         env = {"DO_NOT_TRACK": "1", "HOME": os.environ.get("HOME", "")}
@@ -120,6 +192,25 @@ class CliInstallTest(unittest.TestCase):
                                     self.assertEqual(cli.run_interactive_install(), 0)
 
         install.assert_called_once_with()
+
+    def test_non_interactive_single_vibe_detection_installs_vibe(self):
+        env = {"DO_NOT_TRACK": "1", "HOME": os.environ.get("HOME", "")}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch("geosql.cli.print_banner"):
+                with mock.patch("geosql.cli.detect_installed_agents", return_value=["vibe"]):
+                    with mock.patch("geosql.cli.is_interactive_terminal", return_value=False):
+                        with mock.patch("geosql.cli.install_vibe_skill", return_value=0) as install:
+                            with mock.patch("geosql.cli.offer_dekart_setup", return_value=0):
+                                output = io.StringIO()
+                                with contextlib.redirect_stdout(output):
+                                    self.assertEqual(cli.run_interactive_install(), 0)
+
+        install.assert_called_once_with()
+
+    def test_skill_is_user_invocable(self):
+        skill_text = cli.ROOT_SKILL_FILE.read_text(encoding="utf-8")
+
+        self.assertIn("user-invocable: true", skill_text)
 
     def test_skill_documents_snapshot_viewport_params(self):
         skill_text = cli.ROOT_SKILL_FILE.read_text(encoding="utf-8")

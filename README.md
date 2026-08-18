@@ -1,6 +1,6 @@
 # GeoSQL
 
-Claude, Codex, and GitHub Copilot skill for data scientists and analysts working with geospatial data on PostGIS, BigQuery, Snowflake, and Wherobots.
+Claude Code, Codex, GitHub Copilot, OpenCode, and Mistral Vibe skill for data scientists and analysts working with geospatial data on PostGIS, BigQuery, Snowflake, and Wherobots.
 
 > Note: No SaaS account needed. Works 100% locally or self-hosted.
 

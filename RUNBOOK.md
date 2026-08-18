@@ -54,6 +54,8 @@ Explicit installs:
 geosql install claude
 geosql install codex
 geosql install copilot
+geosql install opencode
+geosql install vibe
 geosql install all
 ```
 
@@ -62,6 +64,8 @@ Expected paths:
 - `~/.claude/skills/geosql/SKILL.md`
 - `~/.codex/skills/geosql/SKILL.md`
 - `~/.copilot/skills/geosql/SKILL.md`
+- `~/.config/opencode/skills/geosql/SKILL.md`
+- `${VIBE_HOME:-~/.vibe}/skills/geosql/SKILL.md`
 
 After each successful command, verify the optional Dekart step matches the current state:
 

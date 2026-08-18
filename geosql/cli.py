@@ -24,6 +24,7 @@ AGENT_LABELS = {
     "codex": "Codex",
     "copilot": "GitHub Copilot",
     "opencode": "OpenCode",
+    "vibe": "Mistral Vibe",
     "all": "your selected agents",
 }
 
@@ -37,7 +38,7 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command")
 
     install = subparsers.add_parser("install", help="Install geosql into a supported CLI.")
-    install.add_argument("target", choices=["claude", "codex", "copilot", "opencode", "all"], help="CLI target to install geosql into.")
+    install.add_argument("target", choices=["claude", "codex", "copilot", "opencode", "vibe", "all"], help="CLI target to install geosql into.")
 
     return parser
 
@@ -526,6 +527,19 @@ def install_opencode_skill():
     return install_skill_at(Path.home() / ".config" / "opencode" / "skills" / "geosql", "OpenCode")
 
 
+def vibe_home_path():
+    """Return the configured Mistral Vibe home directory."""
+    configured_home = os.environ.get("VIBE_HOME", "").strip()
+    if configured_home:
+        return Path(configured_home).expanduser()
+    return Path.home() / ".vibe"
+
+
+def install_vibe_skill():
+    """Install geosql files into Mistral Vibe skill directory."""
+    return install_skill_at(vibe_home_path() / "skills" / "geosql", "Mistral Vibe")
+
+
 def detect_installed_agents():
     """Detect available agents and return ordered list of target ids."""
     detected = []
@@ -533,6 +547,7 @@ def detect_installed_agents():
     codex_present = shutil.which("codex") is not None or (Path.home() / ".codex").exists()
     copilot_present = shutil.which("copilot") is not None or (Path.home() / ".copilot").exists()
     opencode_present = shutil.which("opencode") is not None or (Path.home() / ".config" / "opencode").exists()
+    vibe_present = shutil.which("vibe") is not None or vibe_home_path().exists()
     if claude_present:
         detected.append("claude")
     if codex_present:
@@ -541,12 +556,16 @@ def detect_installed_agents():
         detected.append("copilot")
     if opencode_present:
         detected.append("opencode")
+    if vibe_present:
+        detected.append("vibe")
     return detected
 
 
 def manual_install_hint():
     """Print manual install guidance when no known agent is detected."""
-    print("No supported agents detected (Claude Code / Codex / GitHub Copilot).")
+    vibe_skill_dir = vibe_home_path() / "skills" / "geosql"
+    vibe_skill_display = str(vibe_skill_dir) if os.environ.get("VIBE_HOME", "").strip() else "~/.vibe/skills/geosql"
+    print("No supported agents detected (Claude Code / Codex / GitHub Copilot / OpenCode / Mistral Vibe).")
     print("Manual install steps:")
     print(f"  1) Claude: copy {ROOT_SKILL_FILE} -> ~/.claude/skills/geosql/SKILL.md")
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.claude/skills/geosql/references/")
@@ -556,6 +575,8 @@ def manual_install_hint():
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.copilot/skills/geosql/references/")
     print(f"  4) OpenCode: copy {ROOT_SKILL_FILE} -> ~/.config/opencode/skills/geosql/SKILL.md")
     print(f"     and {ROOT_REFERENCES_DIR} -> ~/.config/opencode/skills/geosql/references/")
+    print(f"  5) Mistral Vibe: copy {ROOT_SKILL_FILE} -> {vibe_skill_display}/SKILL.md")
+    print(f"     and {ROOT_REFERENCES_DIR} -> {vibe_skill_display}/references/")
     return 1
 
 
@@ -580,6 +601,9 @@ def run_interactive_install():
     if "opencode" in detected:
         labels.append("Install for OpenCode")
         targets.append("opencode")
+    if "vibe" in detected:
+        labels.append("Install for Mistral Vibe")
+        targets.append("vibe")
     if len(detected) > 1:
         labels.append("Install for All detected")
         targets.append("all")
@@ -622,12 +646,15 @@ def handle_install_target(target):
         code = install_copilot_skill()
     elif target == "opencode":
         code = install_opencode_skill()
+    elif target == "vibe":
+        code = install_vibe_skill()
     elif target == "all":
         code = 0
         code = max(code, install_claude_skill())
         code = max(code, install_codex_skill())
         code = max(code, install_copilot_skill())
         code = max(code, install_opencode_skill())
+        code = max(code, install_vibe_skill())
     else:
         print(f"Unsupported install target: {target}", file=sys.stderr)
         return 2
