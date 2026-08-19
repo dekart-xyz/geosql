@@ -22,6 +22,8 @@ ORDER BY ordinal_position;
 
 Confirm the geometry column's SRID (expect `4326` for lon/lat). If SRID differs, plan to `ST_Transform(geom, 4326)` for map output. PostGIS must be enabled (`CREATE EXTENSION postgis;`); if `geometry_columns` errors, stop and ask the user to enable PostGIS.
 
+Dekart cannot currently render PostGIS EWKB returned directly by PostgreSQL. For the discovered `geometry` column selected for map output, use `ST_AsGeoJSON(<column>) AS geometry` in the final projection. If it has a known, nonzero SRID other than 4326, use `ST_AsGeoJSON(ST_Transform(<column>, 4326)) AS geometry`; if its SRID is `0` or unknown, resolve the source CRS before transforming. Keep native geometry values in spatial predicates and area/length validation.
+
 ## Step 2: Resolve The Target Area
 
 There is no Overture `division_area` to resolve against. Use whatever boundary source exists in the user's data (an admin-boundary table, a user-supplied polygon, or an explicit bbox the user provides). If no boundary geometry exists, fall back to an explicit lon/lat bbox supplied by the user. Compute the bbox of a chosen boundary row with:
@@ -45,7 +47,7 @@ WITH area AS (
   WHERE name ILIKE '%Berlin%'
   LIMIT 1
 )
-SELECT s.id, s.geom
+SELECT s.id, ST_AsGeoJSON(s.geom) AS geometry
 FROM segments s
 CROSS JOIN area a
 WHERE s.subtype = 'rail'
