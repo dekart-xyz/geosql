@@ -149,11 +149,13 @@ def run_ci_checks():
     print("[pre-push] running CI checks...")
     # 1) Syntax/import check for package and scripts.
     run([sys.executable, "-m", "compileall", "-q", "geosql", "scripts"])
-    # 2) Unit and installer E2E tests.
+    # 2) Host unit tests.
     run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"])
-    # 3) CLI entrypoint smoke check.
+    # 3) Installer E2E in its required Docker environment.
+    run(["make", "test-installer-e2e"])
+    # 4) CLI entrypoint smoke check.
     run([sys.executable, "-m", "geosql.cli", "--help"])
-    # 4) Skill package must be buildable.
+    # 5) Skill package must be buildable.
     run([sys.executable, str(SKILL_BUILDER)])
     print("[pre-push] CI checks passed")
 

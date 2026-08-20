@@ -236,12 +236,13 @@ class DekartSetupTest(unittest.TestCase):
 
     def test_missing_cli_yes_installs_with_current_python_then_initializes(self):
         with mock.patch("geosql.cli.find_dekart_cli", side_effect=[None, "/bin/dekart"]):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
-                with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
-                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
-                        with mock.patch("geosql.cli.pip_is_available", return_value=True):
-                            with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0]) as run_command:
-                                self.assertEqual(cli.offer_dekart_setup(), 0)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                    with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
+                        with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                            with mock.patch("geosql.cli.pip_is_available", return_value=True):
+                                with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0]) as run_command:
+                                    self.assertEqual(cli.offer_dekart_setup(), 0)
 
         self.assertEqual(
             run_command.call_args_list,
@@ -253,12 +254,13 @@ class DekartSetupTest(unittest.TestCase):
 
     def test_missing_cli_bootstraps_pip_before_installing_dekart(self):
         with mock.patch("geosql.cli.find_dekart_cli", side_effect=[None, "/bin/dekart"]):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
-                with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
-                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
-                        with mock.patch("geosql.cli.pip_is_available", return_value=False):
-                            with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0, 0]) as run_command:
-                                self.assertEqual(cli.offer_dekart_setup(), 0)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                    with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
+                        with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                            with mock.patch("geosql.cli.pip_is_available", return_value=False):
+                                with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0, 0]) as run_command:
+                                    self.assertEqual(cli.offer_dekart_setup(), 0)
 
         self.assertEqual(
             run_command.call_args_list,
@@ -272,23 +274,25 @@ class DekartSetupTest(unittest.TestCase):
     def test_pip_bootstrap_failure_prints_actionable_recovery(self):
         stderr = io.StringIO()
         with mock.patch("geosql.cli.find_dekart_cli", return_value=None):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
-                with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
-                    with mock.patch("geosql.cli.pip_is_available", return_value=False):
-                        with mock.patch("geosql.cli.run_dekart_command", return_value=1):
-                            with contextlib.redirect_stderr(stderr):
-                                self.assertEqual(cli.offer_dekart_setup(), 1)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                        with mock.patch("geosql.cli.pip_is_available", return_value=False):
+                            with mock.patch("geosql.cli.run_dekart_command", return_value=1):
+                                with contextlib.redirect_stderr(stderr):
+                                    self.assertEqual(cli.offer_dekart_setup(), 1)
 
         self.assertIn("Use a Python environment that provides pip", stderr.getvalue())
 
     def test_missing_cli_no_keeps_geosql_installed_and_prints_later_commands(self):
         output = io.StringIO()
         with mock.patch("geosql.cli.find_dekart_cli", return_value=None):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
-                with mock.patch("geosql.cli.select_optional_dekart_action", return_value=False):
-                    with mock.patch("geosql.cli.run_dekart_command") as run_command:
-                        with contextlib.redirect_stdout(output):
-                            self.assertEqual(cli.offer_dekart_setup(), 0)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=False):
+                        with mock.patch("geosql.cli.run_dekart_command") as run_command:
+                            with contextlib.redirect_stdout(output):
+                                self.assertEqual(cli.offer_dekart_setup(), 0)
 
         run_command.assert_not_called()
         text = output.getvalue()
@@ -309,10 +313,11 @@ class DekartSetupTest(unittest.TestCase):
     def test_non_interactive_missing_cli_never_installs_or_initializes(self):
         output = io.StringIO()
         with mock.patch("geosql.cli.find_dekart_cli", return_value=None):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=False):
-                with mock.patch("geosql.cli.run_dekart_command") as run_command:
-                    with contextlib.redirect_stdout(output):
-                        self.assertEqual(cli.offer_dekart_setup(), 0)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=False):
+                    with mock.patch("geosql.cli.run_dekart_command") as run_command:
+                        with contextlib.redirect_stdout(output):
+                            self.assertEqual(cli.offer_dekart_setup(), 0)
 
         run_command.assert_not_called()
         self.assertIn("Non-interactive terminal detected", output.getvalue())
@@ -381,11 +386,12 @@ class DekartSetupTest(unittest.TestCase):
     def test_pip_failure_returns_nonzero_and_does_not_run_init(self):
         error = io.StringIO()
         with mock.patch("geosql.cli.find_dekart_cli", return_value=None):
-            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
-                with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
-                    with mock.patch("geosql.cli.run_dekart_command", return_value=7) as run_command:
-                        with contextlib.redirect_stderr(error):
-                            self.assertEqual(cli.offer_dekart_setup(), 7)
+            with mock.patch("geosql.cli.find_environment_dekart_cli", return_value=None):
+                with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                        with mock.patch("geosql.cli.run_dekart_command", return_value=7) as run_command:
+                            with contextlib.redirect_stderr(error):
+                                self.assertEqual(cli.offer_dekart_setup(), 7)
 
         run_command.assert_called_once_with([cli.sys.executable, "-m", "pip", "install", "dekart"])
         self.assertIn("installation failed", error.getvalue())

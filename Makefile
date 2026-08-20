@@ -1,6 +1,7 @@
-.PHONY: help shell-dekart-claude shell-dekart-copilot shell-bq-claude shell-docker-claude shell-no-warehouses _shell-agent-base
+.PHONY: help test-installer-e2e shell-dekart-claude shell-dekart-copilot shell-bq-claude shell-docker-claude shell-no-warehouses _shell-agent-base
 
 GEOSQL_DIND_IMAGE ?= geosql-dind-claude:local
+GEOSQL_INSTALLER_E2E_IMAGE ?= geosql-installer-e2e:local
 
 help:
 	@echo "Targets:"
@@ -8,6 +9,28 @@ help:
 	@echo "  make shell-dekart-copilot # isolated shell: has copilot+dekart, hides bq+snow"
 	@echo "  make shell-bq-claude      # isolated shell: has claude+bq, hides dekart+snow"
 	@echo "  make shell-docker-claude  # privileged disposable DinD shell (trusted code only), port 8080"
+	@echo "  make test-installer-e2e   # isolated Docker E2E for GeoSQL -> Dekart installation"
+
+test-installer-e2e:
+	@set -eu; \
+	command -v docker >/dev/null 2>&1 || { echo "Need 'docker' in PATH." >&2; exit 1; }; \
+	docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }; \
+	docker build \
+		--target installer-e2e \
+		--file Dockerfile.test-shell \
+		--tag "$(GEOSQL_INSTALLER_E2E_IMAGE)" .; \
+	docker run --rm \
+		--network none \
+		--read-only \
+		--cap-drop ALL \
+		--security-opt no-new-privileges \
+		--user 65534:65534 \
+		--tmpfs /tmp:rw,exec,nosuid,nodev,size=128m,mode=1777 \
+		--env GEOSQL_INSTALLER_E2E_CONTAINER=1 \
+		--mount "type=bind,source=$(CURDIR),target=/workspace,readonly" \
+		--workdir /workspace \
+		"$(GEOSQL_INSTALLER_E2E_IMAGE)" \
+		python -m unittest tests.installer_e2e -v
 
 shell-dekart-claude:
 	@$(MAKE) _shell-agent-base AGENT=claude INCLUDE_DEKART=1 INCLUDE_BQ=0 INCLUDE_SNOW=0

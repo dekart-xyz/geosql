@@ -82,7 +82,10 @@ Run the installer regression tests:
 
 ```bash
 python3 -m unittest tests.test_cli -v
+make test-installer-e2e
 ```
+
+`make test-installer-e2e` runs the interactive GeoSQL-to-Dekart installation as a non-root user in an isolated Docker container with no network access and a read-only repository mount. Docker must be available.
 
 ### Disposable Docker-in-Docker shell
 
@@ -125,7 +128,7 @@ Install hooks path:
 
 The `pre-push` hook runs only on `main` and performs:
 
-1. Run syntax checks, the full unit/E2E test suite, the CLI smoke check, and the skill-package build.
+1. Run syntax checks, the full unit suite, the isolated Docker installer E2E, the CLI smoke check, and the skill-package build.
 2. Rebuild `geosql.skill` and commit if changed.
 3. Bump minor version in `pyproject.toml` and commit (separate commit).
 4. Build package and publish to PyPI.

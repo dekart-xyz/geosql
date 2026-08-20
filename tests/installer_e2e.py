@@ -127,9 +127,10 @@ def run_in_pty(command, env, input_bytes=b"\r", timeout=30):
     return process.returncode, output.decode(errors="replace")
 
 
-@unittest.skipIf(pty is None, "PTY installer E2E requires POSIX")
 class InstallerE2ETest(unittest.TestCase):
     def test_vibe_install_bootstraps_dekart_when_environment_has_no_pip(self):
+        self.assertEqual(os.environ.get("GEOSQL_INSTALLER_E2E_CONTAINER"), "1")
+        self.assertTrue(Path("/.dockerenv").is_file(), "installer E2E must run inside Docker")
         with tempfile.TemporaryDirectory() as directory:
             temp_root = Path(directory)
             environment = temp_root / "venv"
