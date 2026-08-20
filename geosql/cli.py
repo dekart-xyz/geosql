@@ -240,9 +240,31 @@ def dekart_install_command():
     return [sys.executable, "-m", "pip", "install", "dekart"]
 
 
-def print_dekart_commands(include_install):
+def pip_is_available():
+    """Return True when the current GeoSQL Python environment can run pip."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def pip_bootstrap_command():
+    """Return the stdlib command that installs pip into this environment."""
+    return [sys.executable, "-m", "ensurepip", "--upgrade"]
+
+
+def print_dekart_commands(include_install, include_bootstrap=False):
     """Print repeatable commands for completing Dekart setup later."""
     print("You can set up Dekart later with:")
+    if include_bootstrap:
+        print(f"  {sys.executable} -m ensurepip --upgrade")
     if include_install:
         print(f"  {sys.executable} -m pip install dekart")
     print("  dekart init")
@@ -394,12 +416,15 @@ def offer_dekart_setup(agent_label="your agent"):
 
     cli_missing = dekart_path is None and environment_dekart_path is None
     cli_needs_exposure = dekart_path is None and environment_dekart_path is not None
+    pip_missing = cli_missing and not pip_is_available()
     print()
     if cli_missing:
         print(f"Dekart CLI lets {agent_label} create maps and inspect results.")
         print("GeoSQL will run only after you confirm.")
         print(f"If needed, GeoSQL will expose the dekart command to {agent_label}.")
         print("Commands to run:")
+        if pip_missing:
+            print(f"  {sys.executable} -m ensurepip --upgrade")
         print(f"  {sys.executable} -m pip install dekart")
         print("  dekart init")
         title = "GeoSQL needs the Dekart CLI to render maps and connect\nyour warehouse."
@@ -422,7 +447,7 @@ def offer_dekart_setup(agent_label="your agent"):
         if cli_needs_exposure:
             print(f"Add this directory to PATH, then run dekart init: {Path(environment_dekart_path).parent}")
         else:
-            print_dekart_commands(include_install=cli_missing)
+            print_dekart_commands(include_install=cli_missing, include_bootstrap=pip_missing)
         return 0
 
     if not select_optional_dekart_action(title, options):
@@ -430,10 +455,24 @@ def offer_dekart_setup(agent_label="your agent"):
         if cli_needs_exposure:
             print(f"Add this directory to PATH, then run dekart init: {Path(environment_dekart_path).parent}")
         else:
-            print_dekart_commands(include_install=cli_missing)
+            print_dekart_commands(include_install=cli_missing, include_bootstrap=pip_missing)
         return 0
 
     if cli_missing:
+        if pip_missing:
+            print("GeoSQL's Python environment does not include pip; bootstrapping it first.")
+            bootstrap_code = run_dekart_command(pip_bootstrap_command())
+            if bootstrap_code == 130:
+                print("GeoSQL is installed. Dekart CLI installation was cancelled.")
+                print_dekart_commands(include_install=True, include_bootstrap=True)
+                return 0
+            if bootstrap_code != 0:
+                print("Could not bootstrap pip for the Dekart CLI installation.", file=sys.stderr)
+                print(
+                    "Use a Python environment that provides pip, reinstall GeoSQL there, and rerun the installer.",
+                    file=sys.stderr,
+                )
+                return bootstrap_code
         install_command = dekart_install_command()
         install_code = run_dekart_command(install_command)
         if install_code == 130:

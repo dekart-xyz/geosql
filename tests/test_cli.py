@@ -239,8 +239,9 @@ class DekartSetupTest(unittest.TestCase):
             with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
                 with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
                     with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
-                        with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0]) as run_command:
-                            self.assertEqual(cli.offer_dekart_setup(), 0)
+                        with mock.patch("geosql.cli.pip_is_available", return_value=True):
+                            with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0]) as run_command:
+                                self.assertEqual(cli.offer_dekart_setup(), 0)
 
         self.assertEqual(
             run_command.call_args_list,
@@ -249,6 +250,36 @@ class DekartSetupTest(unittest.TestCase):
                 mock.call(["/bin/dekart", "init"]),
             ],
         )
+
+    def test_missing_cli_bootstraps_pip_before_installing_dekart(self):
+        with mock.patch("geosql.cli.find_dekart_cli", side_effect=[None, "/bin/dekart"]):
+            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                with mock.patch("geosql.cli.is_dekart_ready", return_value=True):
+                    with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                        with mock.patch("geosql.cli.pip_is_available", return_value=False):
+                            with mock.patch("geosql.cli.run_dekart_command", side_effect=[0, 0, 0]) as run_command:
+                                self.assertEqual(cli.offer_dekart_setup(), 0)
+
+        self.assertEqual(
+            run_command.call_args_list,
+            [
+                mock.call([cli.sys.executable, "-m", "ensurepip", "--upgrade"]),
+                mock.call([cli.sys.executable, "-m", "pip", "install", "dekart"]),
+                mock.call(["/bin/dekart", "init"]),
+            ],
+        )
+
+    def test_pip_bootstrap_failure_prints_actionable_recovery(self):
+        stderr = io.StringIO()
+        with mock.patch("geosql.cli.find_dekart_cli", return_value=None):
+            with mock.patch("geosql.cli.is_interactive_terminal", return_value=True):
+                with mock.patch("geosql.cli.select_optional_dekart_action", return_value=True):
+                    with mock.patch("geosql.cli.pip_is_available", return_value=False):
+                        with mock.patch("geosql.cli.run_dekart_command", return_value=1):
+                            with contextlib.redirect_stderr(stderr):
+                                self.assertEqual(cli.offer_dekart_setup(), 1)
+
+        self.assertIn("Use a Python environment that provides pip", stderr.getvalue())
 
     def test_missing_cli_no_keeps_geosql_installed_and_prints_later_commands(self):
         output = io.StringIO()

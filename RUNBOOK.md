@@ -125,10 +125,11 @@ Install hooks path:
 
 The `pre-push` hook runs only on `main` and performs:
 
-1. Rebuild `geosql.skill` and commit if changed.
-2. Bump minor version in `pyproject.toml` and commit (separate commit).
-3. Build package and publish to PyPI.
-4. Exit with non-zero so you run `git push` again and include the new commits.
+1. Run syntax checks, the full unit/E2E test suite, the CLI smoke check, and the skill-package build.
+2. Rebuild `geosql.skill` and commit if changed.
+3. Bump minor version in `pyproject.toml` and commit (separate commit).
+4. Build package and publish to PyPI.
+5. Exit with non-zero so you run `git push` again and include the new commits.
 
 Optional environment variable:
 

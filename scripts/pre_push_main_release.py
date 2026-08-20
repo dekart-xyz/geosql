@@ -149,9 +149,11 @@ def run_ci_checks():
     print("[pre-push] running CI checks...")
     # 1) Syntax/import check for package and scripts.
     run([sys.executable, "-m", "compileall", "-q", "geosql", "scripts"])
-    # 2) CLI entrypoint smoke check.
+    # 2) Unit and installer E2E tests.
+    run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"])
+    # 3) CLI entrypoint smoke check.
     run([sys.executable, "-m", "geosql.cli", "--help"])
-    # 3) Skill package must be buildable.
+    # 4) Skill package must be buildable.
     run([sys.executable, str(SKILL_BUILDER)])
     print("[pre-push] CI checks passed")
 
