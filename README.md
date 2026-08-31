@@ -26,21 +26,26 @@ After installing, prompt your agent like this:
 /geosql Show EV charger density along major roads and render a map
 ```
 
-### Optional: maps and database connections with Dekart
+## How to update
 
-GeoSQL can use [Dekart](https://github.com/dekart-xyz/dekart) so your agent renders maps, reads them back to fix geometry, and connects to PostGIS, BigQuery, Snowflake, or Wherobots.
-
-After a successful install, GeoSQL offers to set up Dekart:
-
-- **Install Dekart CLI** (recommended) runs the `pip` install and `dekart init`. Already installed and configured? GeoSQL detects it and skips ahead.
-- **Not now** (or Escape / Ctrl+C / a non-interactive terminal) leaves GeoSQL installed and prints the commands for later:
+Upgrade GeoSQL in the Python environment where it is installed:
 
 ```bash
-python -m pip install dekart
-dekart init
+pip install --upgrade geosql
 ```
 
-`dekart init` connects to [Dekart Cloud](https://cloud.dekart.xyz?ref=geosql-github) (no Docker needed), or point it at a local or [self-hosted](https://dekart.xyz/docs/self-hosting/docker/) instance.
+If you use the optional Dekart CLI, update it too:
+
+```bash
+pip install --upgrade dekart
+```
+
+Then rerun the installer so the latest GeoSQL skill and references are copied
+to your detected agent:
+
+```bash
+geosql
+```
 
 ## Version telemetry
 
@@ -64,6 +69,8 @@ EV charging infrastructure:
 ## How it works
 
 GeoSQL runs an agent loop with a map in it.
+
+![How GeoSQL connects the agent, Dekart CLI, data sources, and deployment](assets/how-geosql-works.png)
 
 1. **Discovery.** The skill explores your warehouse metadata (tables, columns, types) instead of guessing schemas. Works with Overture Maps shares on BigQuery and Snowflake, and your private tables on PostGIS, BigQuery, Snowflake, or Wherobots.
 2. **SQL.** The agent writes spatial SQL using the right functions for your engine (`ST_INTERSECTS`, `ST_DISTANCE`, H3, bbox overlap for partition pruning, and so on).
