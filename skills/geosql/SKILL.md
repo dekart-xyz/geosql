@@ -48,6 +48,12 @@ Use the matching reference for per-database SQL, CLI examples, and engine-specif
 - Postgres / PostGIS: `references/postgres.md`
 - Wherobots / Sedona: `references/wherobots.md`
 
+Dekart map references:
+
+- Map config (`update_report_map_config`): `references/map-config.md`
+- Charts (widgets): `references/widgets.md`
+- Styling: `references/map-styling.md`
+
 ## Required Workflow
 
 Follow these steps in order. Do NOT write a final query until steps 1-3 are complete.
@@ -127,6 +133,21 @@ Make sure maps are beautifully styled and communicate a clear insight. Always ad
 
 If dekart CLI is missing, ask the user to `pip install dekart && dekart init` and wait until the user confirms with `ready`, `done`, or `ok`. If unauthed, ask to run `dekart init`.
 
+### Step 6: Add charts
+
+Run when this task created a new report and its map layer (query or file-upload flow) and the widget tool is detected (detection in `references/widgets.md`). If the tool is absent, skip silently: no mention, no upsell.
+
+Add charts by default, without asking, bound to the map-layer dataset only:
+
+1. `number`: count of rows.
+2. `number`: distinct of the map color/category field (the raw field, not the top-N group), or sum/avg of the main metric for aggregates.
+3. `count-plot` on the map color field, `maxBars` 10, `sort` `value-desc` (doubles as legend and click filter). For aggregates colored by a numeric metric, use a `histogram` of that metric instead.
+4. One `histogram` or time count-plot on the most relevant other numeric or month field; skip it on aggregates when item 3 already charts the only metric.
+
+Any stat you would otherwise report in chat (totals, top categories, rates, ranges) becomes a chart; chat gives a one-line summary and the link.
+
+On existing reports, add charts only on request, append-only. Verify with `dekart snapshot --report-id <report_id> --include-widgets` and fix every error card on a `geosql-` chart before the final answer. Protocol, compatibility, and examples: `references/widgets.md`.
+
 
 ## Running Queries with `bq` CLI
 
@@ -140,6 +161,8 @@ Use `snow sql` directly for Snowflake data and keep queries bounded. Full comman
 ## Map Flow with `dekart` CLI
 
 Use this when dekart CLI is available.
+
+Write map styling with `update_report_map_config`; its `map_config` argument is a JSON string. Load `references/map-config.md` before writing or editing a map config.
 
 ### Artifact model
 
@@ -155,7 +178,7 @@ Important IDs:
 - `create_dataset` returns the dataset id at `result.id`.
 - `dekart run-query --json` returns `dataset_id`, `query_id`, `job_id`, terminal status, and `result_file`.
 - `report_url` fields returned directly by MCP tools may miss host name; resolve the user-facing URL with `dekart report-url --report-id <report_id> --json`.
-- In Kepler `map_config`, every layer `config.dataId`, filter `dataId`, and tooltip key must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label.
+- Every layer `config.dataId`, filter `dataId`, and tooltip key in `map_config`, and every widget `dataId` in `widgets_config`, must use the report `dataset_id`, not `query_id`, `file_id`, source table name, or dataset label. Dataset ids are at `result.datasets[].id` in `get_report_properties`.
 
 For real SQL, inline JSON is fragile because SQL often contains quotes and newlines. Save SQL to a file, then pass it to `update_query` through an args JSON file before running `dekart run-query`. The args file must be a JSON object with the prepared query id and SQL text, for example:
 
@@ -205,7 +228,8 @@ Do not create both a raw-file map layer and a derived query layer unless the use
      `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
    - inspect the saved local PNG output from that command; do not use direct PNG URLs/links
    - verify snapshot render reflects expected area/content before finalizing
-10. Return resulting IDs, absolute `report_url`, and image (when available) in final response.
+10. Add charts per Step 6, when it applies.
+11. Return resulting IDs, absolute `report_url`, and image (when available) in final response.
 
 
 ### Query mode
@@ -253,7 +277,8 @@ For DuckDB, follow `references/duckdb.md`; its same-report source and query inst
    - if the snapshot is too zoomed out, centered poorly, or the user asks to zoom/pan, rerun with transient viewport params instead of editing saved map state: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png --zoom <zoom> --lat <latitude> --lon <longitude>`; derive lat/lon from target area or bbox center, use `--lat` and `--lon` together, and preserve the same params on retry
    - inspect saved local PNG output; do not use direct PNG URLs/links
    - verify snapshot reflects expected area/content before finalizing
-8. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
+8. Add charts per Step 6, when it applies.
+9. Return resulting IDs, absolute `report_url`, and image (when available) in final response:
    - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and `report_url`.
 
 ### Failure handling
@@ -295,7 +320,7 @@ Non-obvious rules:
 7. Layer order bottom-up: basemap, polygon fills, lines, points, labels. Selected features always on top.
 8. Lock the initial view to the zoom where the insight is visible. Do not save a world-view for a city-scale insight.
 
-When uncertain about a specific pixel value or palette, read `references/map-styling.md`.
+When uncertain about a specific pixel value or palette, read `references/map-styling.md`. Config shape and worked layer examples: `references/map-config.md`. Charts: `references/widgets.md`.
 
 ## H3 Aggregation
 
