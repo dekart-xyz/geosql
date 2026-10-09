@@ -15,7 +15,7 @@ test-installer-e2e:
 	@set -eu; \
 	command -v docker >/dev/null 2>&1 || { echo "Need 'docker' in PATH." >&2; exit 1; }; \
 	docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }; \
-	docker build \
+	docker build --load \
 		--target installer-e2e \
 		--file Dockerfile.test-shell \
 		--tag "$(GEOSQL_INSTALLER_E2E_IMAGE)" .; \
