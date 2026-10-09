@@ -1,10 +1,10 @@
 # DuckDB Reference
 
-Use DuckDB to transform or join uploaded files and connector-query results already represented as datasets in one Dekart report. Keep every source, scratch, and output dataset in that report; reuse the source report instead of creating a separate output report.
+Use DuckDB to transform or join uploaded files, connector-query results and HTTP sources (JSON, CSV, GeoJSON or parquet fetched by Dekart from an HTTPS URL of a saved HTTP source connection) already represented in one Dekart report. Keep every source, scratch, and output dataset in that report; reuse the source report instead of creating a separate output report.
 
 ## Prerequisites
 
-1. Identify the Python interpreter that owns `command -v dekart`; do not assume `python` or `python3` is the same environment. Run `<dekart-python> -c 'import sys; from importlib.metadata import version; print(sys.version.split()[0], version("dekart"))'`. If Python is older than 3.9, stop and ask the user to install Dekart under Python 3.9 or newer. If the Dekart CLI is older than 0.16.0, stop and ask the user to run `<dekart-python> -m pip install --upgrade 'dekart>=0.16.0'`.
+1. Identify the Python interpreter that owns `command -v dekart`; do not assume `python` or `python3` is the same environment. Run `<dekart-python> -c 'import sys; from importlib.metadata import version; print(sys.version.split()[0], version("dekart"))'`. If Python is older than 3.9, stop and ask the user to install Dekart under Python 3.9 or newer. If the Dekart CLI is older than 0.16.0, stop and ask the user to run `<dekart-python> -m pip install --upgrade 'dekart>=0.16.0'`. Queries over HTTP sources need 0.22.0 or newer. If any `dekart` command answers `Update GeoSQL and the Dekart CLI: pip install --upgrade geosql dekart`, ask the user to run that command, then retry once; do not loop.
 2. Run `dekart tools --schema create_query --json` and `dekart tools --schema run_query --json`. Continue only when `create_query` exposes `QUERY_EXECUTION_ENGINE_DUCKDB` and `run_query` exposes `accept_duckdb_execution`; otherwise keep using connector queries when possible and suggest updating both the CLI and server. If `run-query` still rejects DuckDB, report both versions and ask the user to use their latest releases.
 
 ## Extensions
@@ -45,6 +45,7 @@ For a source without Overture's `division_area` or `bbox` structure, this sectio
 - Give every source dataset a unique name with `update_dataset_name`; DuckDB resolves sources by dataset name within the report.
 - For an uploaded source, create and name its dataset, call `create_file`, then upload CSV, Parquet, JSON, or GeoJSON with `dekart upload-file`.
 - For a connector source, prepare and run its connection-backed query in the same report. Apply that connector's cost and validation rules before running it.
+- For an HTTP source, no dataset is uploaded: `dekart call --name list_connections --json` lists HTTP sources with their base URL, docs URL and header names (never values). The DuckDB query reads the URL directly (see below). If no HTTP source covers the host, ask the user to create one in Dekart under Connections, naming the host; `create_connection` is not available through MCP.
 
 ## Prepare Queries
 
@@ -62,7 +63,24 @@ FROM datasets."Source dataset"
 ORDER BY id
 ```
 
-Alias map geometry exactly as lowercase `geometry`. Do not add `INSTALL`, `LOAD`, source readers, or internal schema setup; Dekart prepares those statements for the CLI and browser. Save SQL with `update_query` and require `dry_run.valid` before execution.
+Alias map geometry exactly as lowercase `geometry`. Do not add `INSTALL`, `LOAD`, file readers, or internal schema setup; Dekart prepares those statements for the CLI and browser. Save SQL with `update_query` and require `dry_run.valid` before execution.
+
+The one reader you write yourself is an HTTP source: `read_json`, `read_json_auto`, `read_csv`, `read_csv_auto`, `read_parquet` or `ST_Read` (GeoJSON, `keep_wkb` is the only option) with one constant HTTPS URL under the base URL of a saved HTTP source:
+
+```sql
+SELECT * FROM read_json('https://api.example.com/v1/stations')
+```
+
+When the URL depends on values in a dataset of the report, pass a scalar subquery whose single column is `format('<constant URL template>', <expressions>)`; each `{}` stands for one complete query-parameter value, and the subquery must return exactly one row:
+
+```sql
+SELECT * FROM read_json((
+  SELECT format('https://api.example.com/v1/isochrone?lat={}&lng={}', latitude, longitude)
+  FROM datasets."Stations" WHERE station_id = '<id>'
+))
+```
+
+A query may hold one computed URL and no constant reader beside it; constant readers alone may appear several times. Put each computed URL in its own query and join the results in a third. Globs, lists, concatenated URLs, `{{param}}` inside the URL, and hosts without an HTTP source fail `dry_run` with a one-line reason; fix the SQL or ask the user for the connection rather than retrying unchanged. Dekart fetches the URL with the connection's headers on every run, so results reflect the API at run time. A computed URL whose subquery returns zero or several rows fails with `HTTP source URL query returned <n> rows; exactly one non-empty URL is required.`
 
 For a Kepler H3 layer, return a string cell ID named exactly `h3`. Pass
 latitude before longitude and aggregate before computing boundary geometry:
@@ -92,6 +110,6 @@ dekart preview <result_file> --schema
 dekart preview <result_file> --limit 20
 ```
 
-The CLI waits for connector dependencies, downloads pinned inputs, and materializes the browser-equivalent Parquet result locally. Do not reproduce that logic in shell commands. Use `--params-json` when the report query uses parameters.
+The CLI waits for connector dependencies, downloads pinned inputs and HTTP sources (computing dataset-derived URLs in the same order as the browser), and materializes the browser-equivalent Parquet result locally. Do not reproduce that logic in shell commands. Use `--params-json` when the report query uses parameters.
 
 After the final query runs, perform later counts, measurements, and previews through the scratch query so the final map layer is not overwritten. In `map_config`, bind layers only to the derived output dataset; omit source dataset IDs unless the user asks to display the raw sources too.
