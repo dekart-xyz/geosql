@@ -151,6 +151,29 @@ Roads as WKT `LINESTRING` in `geometry`, with a numeric `width` column computed 
 }
 ```
 
+### 5. Arcs between two points
+
+Moves from a source to a target. The arc layer binds two coordinate pairs, not a geometry column; the query returns `from_lat, from_lng, to_lat, to_lng` as numeric columns. Stroke width is the `size` channel.
+
+```json
+{
+  "id": "moves",
+  "type": "arc",
+  "config": {
+    "dataId": "<moves_dataset_id>",
+    "label": "Bikes to move",
+    "columns": {"lat0": "from_lat", "lng0": "from_lng", "lat1": "to_lat", "lng1": "to_lng"},
+    "isVisible": true,
+    "visConfig": {"opacity": 0.5, "thickness": 1, "sizeRange": [1, 4],
+                  "colorRange": {"name": "Custom", "type": "qualitative", "category": "Custom", "colors": ["#fde725"]}}
+  },
+  "visualChannels": {
+    "sizeField": {"name": "quantity", "type": "integer"},
+    "sizeScale": "linear"
+  }
+}
+```
+
 ## Initial view
 
 Save the insight view in `mapState` (`latitude`, `longitude`, `zoom`). `dekart snapshot --lat/--lon/--zoom` only overrides the view for that render; it does not change the saved map.

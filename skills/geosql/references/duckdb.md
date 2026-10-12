@@ -63,6 +63,16 @@ FROM datasets."Source dataset"
 ORDER BY id
 ```
 
+`ST_Distance_Sphere` takes its points in the opposite order, latitude first, and returns meters. Build a second point for the distance; do not reuse the geometry column:
+
+```sql
+SELECT a.id, b.id AS other_id,
+       ST_Distance_Sphere(ST_Point(a.latitude, a.longitude), ST_Point(b.latitude, b.longitude)) / 1000 AS km
+FROM datasets."Stations" a JOIN datasets."Stations" b ON a.id < b.id
+```
+
+With longitude first the result is still a plausible number, only wrong: for Washington DC a 0.01 degree step north gives 1,112 m in the right order and 250 m in the wrong one. The DuckDB docs state the same latitude-first order for `ST_Distance_Spheroid`.
+
 Alias map geometry exactly as lowercase `geometry`. Do not add `INSTALL`, `LOAD`, file readers, or internal schema setup; Dekart prepares those statements for the CLI and browser. Save SQL with `update_query` and require `dry_run.valid` before execution.
 
 The one reader you write yourself is an HTTP source: `read_json`, `read_json_auto`, `read_csv`, `read_csv_auto`, `read_parquet` or `ST_Read` (GeoJSON, `keep_wkb` is the only option) with one constant HTTPS URL under the base URL of a saved HTTP source:

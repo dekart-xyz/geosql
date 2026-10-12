@@ -1,6 +1,6 @@
 ---
 name: geosql
-description: Build cost-safe geospatial SQL for BigQuery, DuckDB, Snowflake, Wherobots, and Postgres and/or render results on an interactive Dekart map.
+description: Build cost-safe geospatial SQL for BigQuery, DuckDB, Snowflake, Wherobots, and Postgres and/or render results on an interactive Dekart map, or answer where-to-act questions (move, close, prioritise, allocate).
 user-invocable: true
 ---
 
@@ -71,6 +71,15 @@ When the user asks about a named area (city, district, country), query `division
 
 Use the dialect reference for target-area SQL and fallbacks. Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
 
+### Decision questions
+
+When the prompt asks where to act (move, close, prioritise, allocate):
+
+- Check the data before modelling it, with bounded scratch queries: volume per period against the median, missing or orphan keys, duplicates. Exclude anything only with a stated reason, and record it in the README.
+- Answer for the hard case the decision must survive (a high percentile), not the average.
+- Test the answer against the data's own limits: a recommendation must be feasible with what the data shows is available, and what it cannot cover is reported as its own number.
+- Every threshold carries a one-line reason; every number in the answer comes from a saved query.
+
 ### Step 3: Draft the query
 
 - Use hardcoded bbox from step 2 as a scan gate (fast partition pruning).
@@ -112,6 +121,7 @@ Do NOT present the query to the user without validating it first.
    - If output includes line `GEOGRAPHY`, compute total length (for example `SUM(ST_LENGTH(geometry))`) and return units in meters (and optionally km).
    - If output includes `geometry`, measurements are CRS units. For EPSG:4326 geometry, do not report meters; transform/cast first or label the result as CRS units.
    - If geometry is point-only or no geometry is selected, explicitly state area/length validation is not applicable.
+   - If the query computes point-to-point distances, check one pair by hand against a known distance before using them. In DuckDB, `ST_Distance_Sphere` expects latitude first, the opposite of `ST_Point` for the geometry column; a swapped order gives plausible but wrong distances (see `references/duckdb.md`).
 4. Sanity-check whether row count and area/length are reasonable for the place and feature type (use domain knowledge). If numbers look implausible, debug before presenting.
 5. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types.
 
