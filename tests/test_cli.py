@@ -215,9 +215,9 @@ class CliInstallTest(unittest.TestCase):
     def test_skill_documents_snapshot_viewport_params(self):
         skill_text = cli.ROOT_SKILL_FILE.read_text(encoding="utf-8")
 
-        self.assertIn("dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png --zoom", skill_text)
-        self.assertIn("--lat", skill_text)
-        self.assertIn("--lon", skill_text)
+        self.assertIn("`create_report_snapshot`", skill_text)
+        for argument in ("`zoom`", "`lat`", "`lon`"):
+            self.assertIn(argument, skill_text)
 
 
 class DekartSetupTest(unittest.TestCase):
