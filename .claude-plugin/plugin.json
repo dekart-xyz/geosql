@@ -1,9 +1,12 @@
 {
   "name": "geosql",
-  "description": "Geospatial SQL skill for BigQuery and Snowflake. Discovers Overture Maps and warehouse schemas, writes cost-safe SQL with mandatory dry-run, validates results, and optionally renders an interactive map.",
-  "category": "location",
+  "displayName": "GeoSQL",
+  "version": "0.38.0",
+  "description": "Geospatial SQL and maps for BigQuery, Snowflake, DuckDB, Wherobots and Postgres: discovers Overture Maps and warehouse schemas, writes cost-safe SQL with a dry-run budget check, validates results and renders them on an interactive Dekart map through the GeoSQL MCP tools or the dekart CLI.",
   "author": {
     "name": "Dekart XYZ",
     "url": "https://dekart.xyz"
-  }
+  },
+  "homepage": "https://github.com/dekart-xyz/geosql",
+  "license": "MIT"
 }
