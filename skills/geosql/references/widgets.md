@@ -4,7 +4,7 @@ Load when the widget tool is available. Charts render in a pane next to the map 
 
 ## Detection
 
-Both must hold:
+`update_report_widgets_config` must be in the tool list. Over the CLI, both must hold:
 
 ```bash
 dekart tools --names | grep -qx update_report_widgets_config && echo widgets=ok
@@ -12,7 +12,7 @@ dekart snapshot --help | grep -q -- --include-widgets && echo snapshot=ok
 ```
 
 - Tool missing: the server has no charts. Skip charts silently.
-- Tool present, `--include-widgets` missing: the CLI is older than 0.21.0 and cannot verify charts. Ask the user to run `pip install -U dekart`, wait for confirmation, then continue. Never write charts you cannot verify.
+- Tool present, CLI `--include-widgets` missing: the CLI is older than 0.21.0 and cannot verify charts. Ask the user to run `pip install -U dekart`, wait for confirmation, then continue. Never write charts you cannot verify.
 
 ## Document
 
@@ -27,7 +27,7 @@ dekart snapshot --help | grep -q -- --include-widgets && echo snapshot=ok
 
 ## Types and field compatibility
 
-Column types come from the dataset file as DuckDB reads it, not from your SQL. Check them with `dekart preview <result_file> --schema`.
+Column types come from the dataset file as DuckDB reads it, not from your SQL. Check them in the result schema (`references/dekart-access.md`).
 
 | Type | Settings | Field must be |
 |---|---|---|
@@ -67,6 +67,8 @@ Shape the map-layer query so chart columns exist with the right types:
 - Current widgets: `result.report.widgets_config` from `get_report_properties`, a JSON string. The key is omitted when the report has no charts; start from `{"version":1,"widgets":[]}`.
 - Dataset ids: `result.datasets[].id` (names at `result.datasets[].name` when set).
 
+Three steps: `get_report_properties`, merge (reject any id already in the report), `update_report_widgets_config` with `{"report_id": "<report_id>", "widgets_config": "<JSON string>"}`. Over MCP, build the merged document in your own reasoning and pass it serialized as the one string argument. Over the CLI:
+
 ```bash
 dekart call --name get_report_properties --args '{"report_id":"<report_id>"}' --json --out /tmp/report-props.json \
   && python3 - <<'EOF' && dekart call --name update_report_widgets_config --args-file /tmp/widgets-args.json --json
@@ -93,15 +95,17 @@ The write runs only if the fresh read and the merge succeed. If the assert fires
 
 ## Verify
 
+`create_report_snapshot` with `include_widgets: true`; over the CLI:
+
 ```bash
 dekart snapshot --report-id <report_id> --include-widgets --out /tmp/<report_id>-charts.png
 ```
 
-Without `--include-widgets` the snapshot shows the map only. A failed chart shows "This chart couldn't load." Fix the `geosql-` chart (field type, SQL shaping) and re-snapshot before reporting done. A failing user chart is reported, not edited. Add `--height 1400` when charts are cut off (local rendering only).
+Without `include_widgets` the snapshot shows the map only. A failed chart shows "This chart couldn't load." Fix the `geosql-` chart (field type, SQL shaping) and re-snapshot before reporting done. A failing user chart is reported, not edited. When charts are cut off, set the height to 1400 (`height` over MCP; `--height 1400` over the CLI, local rendering only).
 
 ## Errors
 
-Re-run a failed call with `--debug` to see the response body.
+Over the CLI, re-run a failed call with `--debug` to see the response body. Over MCP the error shows only the HTTP status: call `get_widgets_config_schema` and check the document against it and against the examples below.
 
 | Error | Fix |
 |---|---|

@@ -4,7 +4,7 @@ Load when writing or editing a report `map_config`. Styling choices (palette, ra
 
 ## Write command
 
-`map_config` is a JSON **string** inside the args object, not a nested object. Sending an object fails with `proto: ... invalid value for string field mapConfig`. Build the args file with `json.dumps` in a heredoc, never by hand:
+`update_report_map_config` takes `{"report_id": "<report_id>", "map_config": "<JSON string>"}`. `map_config` is a JSON **string** inside the args object, not a nested object. Sending an object fails with `proto: ... invalid value for string field mapConfig`. Over MCP, pass the serialized document (quotes escaped) as that one string argument and build it in your own reasoning, not in the message to the user. Over the CLI, build the args file with `json.dumps` in a heredoc, never by hand:
 
 ```bash
 python3 - <<'EOF'
@@ -31,11 +31,7 @@ dekart call --name update_report_map_config --args-file /tmp/map-config-args.jso
 
 ## Editing an existing report
 
-Read before you write. `get_report_properties` returns the saved config at `result.report.map_config` as a JSON string; `json.loads` it, change only what the request needs, and write the whole document back. The key is omitted when the report has no saved config yet.
-
-```bash
-dekart call --name get_report_properties --args '{"report_id":"<report_id>"}' --json
-```
+Read before you write. `get_report_properties` returns the saved config at `result.report.map_config` as a JSON string; `json.loads` it, change only what the request needs, and write the whole document back. The key is omitted when the report has no saved config yet. Call `get_report_properties` with `{"report_id":"<report_id>"}`.
 
 ## Layer shape
 
@@ -176,11 +172,11 @@ Moves from a source to a target. The arc layer binds two coordinate pairs, not a
 
 ## Initial view
 
-Save the insight view in `mapState` (`latitude`, `longitude`, `zoom`). `dekart snapshot --lat/--lon/--zoom` only overrides the view for that render; it does not change the saved map.
+Save the insight view in `mapState` (`latitude`, `longitude`, `zoom`). The snapshot's `lat`, `lon` and `zoom` only override the view for that render; they do not change the saved map.
 
 ## Errors
 
-The CLI prints only the error code. Re-run the same call with `--debug` to see `response_body.issues[]`; each issue has `path` and `actual`. A single mistake can produce many issues, one per layer type the validator tried; look for the one that names your key.
+Over the CLI the error names the code (table below); re-run the same call with `--debug` to see `response_body.issues[]`, each issue with `path` and `actual`. Over MCP only the HTTP status is shown: call `get_map_config_schema` and check the document against it and against the examples above. A single mistake can produce many issues, one per layer type the validator tried; look for the one that names your key.
 
 | Error | Cause | Fix |
 |---|---|---|
@@ -189,4 +185,4 @@ The CLI prints only the error code. Re-run the same call with `--debug` to see `
 | `map_config_validation_failed`, `unknown_dataset_id` | `dataId` or tooltip key is not a report dataset id | use `result.datasets[].id` from `get_report_properties` |
 | `map_config_validation_failed`, `missing properties: 'hex_id'` or `'lat', 'lng'` | wrong `columns` keys for the layer type | use the keys from the examples above |
 
-Column names are not validated. A config that binds a missing or misspelled column is accepted and renders a blank or uncolored layer. Check column names against `dekart preview <result_file> --schema` before writing (Snowflake exports are uppercase).
+Column names are not validated. A config that binds a missing or misspelled column is accepted and renders a blank or uncolored layer. Check column names against the result schema (`references/dekart-access.md`) before writing (Snowflake exports are uppercase).
